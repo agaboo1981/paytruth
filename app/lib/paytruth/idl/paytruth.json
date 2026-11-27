@@ -1,0 +1,1336 @@
+{
+  "address": "D8dnG9j1zSwwaJLyAvp794MJqEXptdiVS74gh6fNLQ7H",
+  "metadata": {
+    "name": "paytruth",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "close_invoice",
+      "discriminator": [
+        217,
+        64,
+        46,
+        247,
+        231,
+        36,
+        118,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "merchant",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "invoice"
+          ]
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "invoice.merchant",
+                "account": "Invoice"
+              },
+              {
+                "kind": "account",
+                "path": "invoice.invoice_id",
+                "account": "Invoice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_invoice",
+      "discriminator": [
+        154,
+        170,
+        31,
+        135,
+        134,
+        100,
+        156,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "merchant",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant"
+              },
+              {
+                "kind": "arg",
+                "path": "invoice_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "invoice"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "amount_due",
+          "type": "u64"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        },
+        {
+          "name": "memo",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "expire_invoice",
+      "discriminator": [
+        239,
+        203,
+        58,
+        150,
+        67,
+        51,
+        55,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "invoice.merchant",
+                "account": "Invoice"
+              },
+              {
+                "kind": "account",
+                "path": "invoice.invoice_id",
+                "account": "Invoice"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "owner, an `spl_token::state::Mint` layout, and `decimals == USDC_DECIMALS`."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "usdc_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "merchant_claim",
+      "discriminator": [
+        184,
+        206,
+        238,
+        15,
+        55,
+        16,
+        78,
+        39
+      ],
+      "accounts": [
+        {
+          "name": "merchant",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "invoice"
+          ]
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "invoice.merchant",
+                "account": "Invoice"
+              },
+              {
+                "kind": "account",
+                "path": "invoice.invoice_id",
+                "account": "Invoice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "merchant_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "merchant"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pay_invoice",
+      "discriminator": [
+        104,
+        6,
+        62,
+        239,
+        197,
+        206,
+        208,
+        220
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "invoice.merchant",
+                "account": "Invoice"
+              },
+              {
+                "kind": "account",
+                "path": "invoice.invoice_id",
+                "account": "Invoice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "payer_ata",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "expected_amount_due",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "recover_unattributed",
+      "discriminator": [
+        65,
+        35,
+        239,
+        112,
+        160,
+        111,
+        171,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "merchant",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "invoice"
+          ]
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "invoice.merchant",
+                "account": "Invoice"
+              },
+              {
+                "kind": "account",
+                "path": "invoice.invoice_id",
+                "account": "Invoice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "destination_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "merchant"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refund_overpayment",
+      "discriminator": [
+        193,
+        10,
+        58,
+        199,
+        177,
+        164,
+        211,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "invoice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  118,
+                  111,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "invoice.merchant",
+                "account": "Invoice"
+              },
+              {
+                "kind": "account",
+                "path": "invoice.invoice_id",
+                "account": "Invoice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "escrow",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "constraint ties it to `invoice.payer`."
+          ]
+        },
+        {
+          "name": "payer_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "payer"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Invoice",
+      "discriminator": [
+        51,
+        194,
+        250,
+        114,
+        6,
+        104,
+        18,
+        164
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "InvoiceClaimed",
+      "discriminator": [
+        217,
+        171,
+        5,
+        26,
+        181,
+        133,
+        111,
+        248
+      ]
+    },
+    {
+      "name": "InvoiceClosed",
+      "discriminator": [
+        73,
+        15,
+        241,
+        78,
+        178,
+        104,
+        112,
+        196
+      ]
+    },
+    {
+      "name": "InvoiceCreated",
+      "discriminator": [
+        189,
+        114,
+        235,
+        219,
+        193,
+        125,
+        47,
+        54
+      ]
+    },
+    {
+      "name": "InvoiceExpired",
+      "discriminator": [
+        135,
+        245,
+        53,
+        40,
+        249,
+        47,
+        126,
+        95
+      ]
+    },
+    {
+      "name": "InvoicePaid",
+      "discriminator": [
+        200,
+        211,
+        168,
+        170,
+        46,
+        82,
+        83,
+        186
+      ]
+    },
+    {
+      "name": "OverpaymentRefunded",
+      "discriminator": [
+        27,
+        53,
+        1,
+        51,
+        105,
+        114,
+        108,
+        111
+      ]
+    },
+    {
+      "name": "UnattributedRecovered",
+      "discriminator": [
+        210,
+        21,
+        27,
+        226,
+        152,
+        155,
+        217,
+        218
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Underpayment",
+      "msg": "Payment amount is less than the invoice amount due"
+    },
+    {
+      "code": 6001,
+      "name": "DuplicatePayment",
+      "msg": "Invoice has already been paid"
+    },
+    {
+      "code": 6002,
+      "name": "InvoiceNotOpen",
+      "msg": "Invoice is not open"
+    },
+    {
+      "code": 6003,
+      "name": "InvoiceExpired",
+      "msg": "Invoice has expired"
+    },
+    {
+      "code": 6004,
+      "name": "InvoiceNotPaid",
+      "msg": "Invoice is not paid"
+    },
+    {
+      "code": 6005,
+      "name": "AlreadyClaimed",
+      "msg": "Invoice has already been claimed"
+    },
+    {
+      "code": 6006,
+      "name": "AlreadyRefunded",
+      "msg": "Overpayment has already been refunded"
+    },
+    {
+      "code": 6007,
+      "name": "NothingToRefund",
+      "msg": "Invoice has no excess to refund"
+    },
+    {
+      "code": 6008,
+      "name": "NotExpired",
+      "msg": "Invoice has not expired yet"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidExpiry",
+      "msg": "Invalid expiry"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidMint",
+      "msg": "Invalid mint"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidEscrow",
+      "msg": "Invalid escrow account"
+    },
+    {
+      "code": 6013,
+      "name": "UnauthorizedMerchant",
+      "msg": "Signer is not the invoice merchant"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidPayerAta",
+      "msg": "Invalid payer associated token account"
+    },
+    {
+      "code": 6015,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6016,
+      "name": "VaultNotEmpty",
+      "msg": "Vault is not empty"
+    },
+    {
+      "code": 6017,
+      "name": "InvoiceNotTerminal",
+      "msg": "Invoice is not in a terminal state"
+    },
+    {
+      "code": 6018,
+      "name": "ExcessOutstanding",
+      "msg": "Recorded excess has not been refunded"
+    },
+    {
+      "code": 6019,
+      "name": "NothingToRecover",
+      "msg": "Nothing to recover"
+    },
+    {
+      "code": 6020,
+      "name": "PayerNotRecorded",
+      "msg": "Payer is not recorded on the invoice"
+    },
+    {
+      "code": 6021,
+      "name": "ConfigMintMismatch",
+      "msg": "Mint does not match config usdc mint"
+    },
+    {
+      "code": 6022,
+      "name": "InvoiceMismatch",
+      "msg": "Invoice does not match the expected amount due (stale or substituted invoice)"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Invoice",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "invoice_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount_due",
+            "type": "u64"
+          },
+          {
+            "name": "paid_amount",
+            "type": "u64"
+          },
+          {
+            "name": "refunded_excess",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "memo",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "InvoiceClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount_due",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InvoiceClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InvoiceCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "invoice_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount_due",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InvoiceExpired",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InvoicePaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "excess",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OverpaymentRefunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "excess",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UnattributedRecovered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "invoice",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "CONFIG_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "INVOICE_SEED",
+      "type": "bytes",
+      "value": "[105, 110, 118, 111, 105, 99, 101]"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "name": "@paytruth/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript client SDK for the Paytruth on-chain USDC invoice program",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsup",
+    "test:localnet": "PAYTRUTH_LOCALNET=1 vitest run tests/localnet",
+    "gen:fixtures": "tsx scripts/gen-tx-fixtures.ts",
+    "sync:app": "tsx scripts/sync-to-app.ts",
+    "check:app-sync": "tsx scripts/sync-to-app.ts --check",
+    "sync:idl": "tsx scripts/sync-idl.ts",
+    "check:idl": "tsx scripts/sync-idl.ts --check"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "^1.2.2",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "1.99.0",
+    "bn.js": "^5.2.1"
+  },
+  "peerDependencies": {
+    "@solana/wallet-adapter-base": "0.9.28",
+    "@solana/wallet-adapter-react": "0.15.40",
+    "@solana/wallet-adapter-react-ui": "0.9.40",
+    "react": "18.3.1"
+  },
+  "devDependencies": {
+    "@solana/wallet-adapter-base": "0.9.28",
+    "@solana/wallet-adapter-react": "0.15.40",
+    "@solana/wallet-adapter-react-ui": "0.9.40",
+    "@testing-library/react": "^16.1.0",
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^22.20.7",
+    "@types/react": "18.3.18",
+    "jsdom": "^25.0.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.9"
+  }
+}
