@@ -27,12 +27,12 @@ Two program-owned account types plus one standard escrow ATA.
 | Account | Seeds | Size (bytes) | Notes |
 |---|---|---|---|
 | Config | `[b"config"]` | 73 | `8 (disc) + 65` |
-| Invoice | `[b"invoice", merchant, invoice_id.to_le_bytes()]` | 211 | `8 (disc) + 203` |
+| Invoice | `[b"invoice", merchant, invoice_id.to_le_bytes()]` | 219 | `8 (disc) + 211` |
 | Escrow | ATA of (authority = Invoice PDA, mint = invoice.mint) | 165 | Standard SPL token account |
 
 Config fields: `authority: Pubkey (32)`, `usdc_mint: Pubkey (32)`, `bump: u8 (1)` → 65 bytes.
 
-Invoice fields: `merchant (32)`, `payer (32)`, `mint (32)`, `invoice_id (8)`, `amount_due (8)`, `paid_amount (8)`, `refunded_excess (8)`, `created_at (8)`, `expires_at (8)`, `status: u8 (1)`, `claimed: bool (1)`, `bump (1)`, `memo: [u8;64] (64)` → `96 + 40 + 3 + 64 = 203` bytes.
+Invoice fields: `merchant (32)`, `payer (32)`, `mint (32)`, `invoice_id (8)`, `amount_due (8)`, `paid_amount (8)`, `refunded_excess (8)`, `created_at (8)`, `expires_at (8)`, `status: u8 (1)`, `claimed: bool (1)`, `bump (1)`, `memo: [u8;64] (64)` → `96 + 48 + 3 + 64 = 211` bytes.
 
 Field-by-field layout and validation: see [PROGRAM-SPEC.md](./PROGRAM-SPEC.md).
 

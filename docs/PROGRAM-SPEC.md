@@ -44,8 +44,8 @@ USDC (devnet): `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`, 6 decimals, class
 | claimed | bool | 1 | set true by `merchant_claim` |
 | bump | u8 | 1 | Invoice PDA bump |
 | memo | [u8;64] | 64 | UTF-8, zero-padded |
-| **InitSpace** | | **203** | `96 + 40 + 3 + 64` |
-| **Account size** | `8 + 203` | **211** | |
+| **InitSpace** | | **211** | `96 + 48 + 3 + 64` |
+| **Account size** | `8 + 211` | **219** | |
 
 `payer` is a `Pubkey` (not `Option<Pubkey>`); default pubkey means unpaid.
 

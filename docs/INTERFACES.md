@@ -29,7 +29,7 @@ fetchEscrowBalance(invoicePda: PublicKey, mint: PublicKey): Promise<bigint>;
 // Writes (return confirmed signature; caller polls state)
 initializeConfig(args: { usdcMint: PublicKey }): Promise<{ signature: string; configPda: PublicKey }>;
 createInvoice(args: { invoiceId: bigint; amountDue: bigint; expiresAt: bigint; memo: string | Uint8Array }): Promise<{ signature: string; invoicePda: PublicKey }>;
-payInvoice(args: { invoicePda: PublicKey; amount: bigint }): Promise<{ signature: string }>;
+payInvoice(args: { invoicePda: PublicKey; amount: bigint; expectedAmountDue: bigint }): Promise<{ signature: string }>; // expectedAmountDue = amount_due the payer saw; mismatch -> InvoiceMismatch (6022)
 merchantClaim(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
 refundOverpayment(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
 expireInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
@@ -46,7 +46,7 @@ subscribeInvoice(invoicePda: PublicKey, cb: (inv: Invoice | null) => void): () =
 ```ts
 type Commitment = "processed" | "confirmed" | "finalized"; // default "confirmed"
 
-enum InvoiceStatus { Open = 0, Paid = 1, Expired = 2 }
+enum InvoiceStatus { Open = 0, Paid = 1, Expired = 2, Closed = 3 } // Closed = tombstone after close_invoice; invoice_id can never be reused
 
 interface Config {
   authority: PublicKey;

@@ -20,7 +20,7 @@ Two layers plus a QA adversarial pass:
 | ID | Test | Asserts |
 |---|---|---|
 | H1 | initialize_config | Config PDA created; `authority`, `usdc_mint`, `bump` set; size 73 |
-| H2 | create_invoice | Invoice Open; fields set; memo padded to 64; escrow ATA exists (authority = invoice); size 211 |
+| H2 | create_invoice | Invoice Open; fields set; memo padded to 64; escrow ATA exists (authority = invoice); size 219 |
 | H3 | pay exact | transfer moved; status Paid; paid_amount == amount_due; payer recorded; excess 0 |
 | H4 | pay over | status Paid; paid_amount > amount_due; excess == paid - due; full amount in escrow |
 | H5 | merchant_claim | amount_due escrow→merchant; claimed true; vault holds only excess |
