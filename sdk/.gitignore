@@ -8,3 +8,4 @@ coverage
 *.tsbuildinfo
 .localnet-program.so
 .test-ledger/
+.devnet-runs/
