@@ -175,7 +175,11 @@ function fixtureToStored(label: keyof typeof fixtureSpecs, now: number): StoredI
     claimed: Boolean(spec.claimed),
     bump: hexBump(spec.pda),
     memo: encodeMemo(spec.memo),
-    vault: paidAmount.toString(),
+    vault: (
+      paidAmount -
+      (spec.claimed ? spec.amountDue : 0n) -
+      (spec.refundedExcess ?? 0n)
+    ).toString(),
   };
 }
 
@@ -410,19 +414,14 @@ export class MockPaytruthSdk implements PaytruthSdk {
     return { signature: fakeSignature() };
   }
 
-  private isTerminal(record: StoredInvoice): boolean {
-    if (record.status === InvoiceStatus.Expired) return true;
-    if (record.status === InvoiceStatus.Paid && record.claimed) {
-      const excess = BigInt(record.paidAmount) - BigInt(record.amountDue);
-      return excess <= 0n || BigInt(record.refundedExcess) === excess;
-    }
-    return false;
-  }
-
   private assertTerminal(record: StoredInvoice): void {
-    if (!this.isTerminal(record)) throw programError('InvoiceNotTerminal');
+    if (record.status === InvoiceStatus.Expired) return;
     const excess = BigInt(record.paidAmount) - BigInt(record.amountDue);
-    if (excess > 0n && BigInt(record.refundedExcess) !== excess) throw programError('ExcessOutstanding');
+    if (record.status === InvoiceStatus.Paid && record.claimed) {
+      if (excess > 0n && BigInt(record.refundedExcess) !== excess) throw programError('ExcessOutstanding');
+      return;
+    }
+    throw programError('InvoiceNotTerminal');
   }
 
   async recoverUnattributed(args: {

@@ -4,7 +4,10 @@ import { useConnection, useWallet, type Wallet } from '@solana/wallet-adapter-re
 
 import { Badge } from '../badge';
 import { cn } from '../utils';
-import { isDevnetEndpoint } from './provider';
+
+function isDevnetEndpoint(endpoint: string): boolean {
+  return /devnet/i.test(endpoint);
+}
 
 type StateProps = {
   detected?: string;
