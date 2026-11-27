@@ -18,7 +18,7 @@ const txPhases: { phase: TxPhase; label: string; state: TxState }[] = [
   { phase: 'failed', label: 'Error — duplicate', state: { status: 'failed', error: { code: 'DuplicatePayment', message: 'This invoice is already paid. You were not charged again.' } } },
   { phase: 'failed', label: 'Error — underpayment', state: { status: 'failed', error: { code: 'Underpayment', message: "That's less than the amount due. Nothing was sent." } } },
   { phase: 'failed', label: 'Error — expired invoice', state: { status: 'failed', error: { code: 'InvoiceExpired', message: "This invoice has expired and can't be paid." } } },
-  { phase: 'failed', label: 'Error — invoice closed', state: { status: 'failed', error: { code: 'INVOICE_CLOSED', message: 'This invoice was closed by the merchant. No money moved.' } } },
+  { phase: 'failed', label: 'Error — invoice closed', state: { status: 'failed', error: { code: 'INVOICE_CLOSED', message: 'This invoice is closed and can no longer be paid. No money moved.' } } },
 ];
 
 const derivedSamples: { kind: DerivedKind; headline: string; explanation: string }[] = [

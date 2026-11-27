@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  FeePayerUnfundedError,
+  InvoiceClosedError,
+  InvoiceExpiredError,
   InvoiceNotFoundError,
   MainnetRefusedError,
   TxTimeoutError,
@@ -189,7 +192,7 @@ describe('mapTxError Full-Stack mapError cases', () => {
       phase: 'failed',
       error: {
         code: 'INVOICE_CLOSED',
-        message: 'This invoice was closed by the merchant. No money moved.',
+        message: 'This invoice is closed and can no longer be paid. No money moved.',
         raw: 'Invoice not found: no invoice account exists at invoice.',
       },
     });
@@ -202,7 +205,7 @@ describe('mapTxError Full-Stack mapError cases', () => {
       phase: 'failed',
       error: {
         code: 'INVOICE_CLOSED',
-        message: 'This invoice was closed by the merchant. No money moved.',
+        message: 'This invoice is closed and can no longer be paid. No money moved.',
         raw,
       },
     });
@@ -258,6 +261,20 @@ describe('mapTxError Full-Stack mapError cases', () => {
       'Simulation failed. \nMessage: Transaction simulation failed: This account may not be used to pay transaction fees. \nLogs: \n[]. \nCatch the `SendTransactionError` and call `getLogs()` on it for full details.',
     );
     expect(mapTxError(error).error.code).toBe('INSUFFICIENT_SOL');
-    expect(mapTxError(error).error.message).toBe('Not enough SOL to pay the network fee.');
+    expect(mapTxError(error).error.message).toBe(
+      'This wallet needs a little SOL to pay network fees. Fund it with SOL and try again.',
+    );
+  });
+
+  it('maps FS typed InvoiceClosedError / InvoiceExpiredError / FeePayerUnfundedError to FS copy', () => {
+    expect(mapTxError(new InvoiceClosedError('X')).error).toMatchObject({
+      code: 'INVOICE_CLOSED',
+      message: 'This invoice is closed and can no longer be paid. No money moved.',
+    });
+    expect(mapTxError(new InvoiceExpiredError('X')).error).toMatchObject({
+      code: 'INVOICE_EXPIRED',
+      message: 'This invoice has expired. No money moved.',
+    });
+    expect(mapTxError(new FeePayerUnfundedError()).error.code).toBe('INSUFFICIENT_SOL');
   });
 });

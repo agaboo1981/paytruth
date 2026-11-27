@@ -214,7 +214,8 @@ test.describe('devnet: full UI flow with test wallets', () => {
     record({ step: 'expire C', pda, signature: await lastSignature(mp), result: 'ok' });
     await mp.goto(`/merchant/${pda}`);
     await mp.getByRole('button', { name: 'Close invoice' }).click();
-    await expect(mp.locator('main')).toContainText(/Closed/, { timeout: 150_000 });
+    await waitFinal(mp);
+    await expect(mp.locator('main')).toContainText('Closed — the invoice account was removed', { timeout: 60_000 });
     record({ step: 'close C', pda, signature: await lastSignature(mp), result: 'ok' });
     await mp.goto(`/merchant/${pda}`);
     await expect(mp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Address } from '@/components/ui/address';
 import { Button } from '@/components/ui/button';
+import { ExplorerLink } from '@/components/ui/explorer-link';
 import { CopyLink } from '@/components/ui/invoice/copy-link';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Input } from '@/components/ui/input';
@@ -90,7 +91,7 @@ export default function NewInvoicePage() {
   const formValid =
     parsedAmount !== null && parsedAmount > 0n && memoError === null && expiryError === null && invoiceIdError === null && publicKey !== null;
 
-  const resultRef = useRef<{ pda: string } | null>(null);
+  const resultRef = useRef<{ pda: string; signature: string } | null>(null);
 
   const tx = useTxAction(
     async (opts) => {
@@ -103,7 +104,7 @@ export default function NewInvoicePage() {
         expiresAt: computedExpiry,
         memo,
       }, opts);
-      resultRef.current = { pda: result.invoicePda.toBase58() };
+      resultRef.current = { pda: result.invoicePda.toBase58(), signature: result.signature };
       return { signature: result.signature };
     },
     {},
@@ -157,6 +158,12 @@ export default function NewInvoicePage() {
               </Link>
             </div>
           </div>
+
+          {resultRef.current?.pda === successPda ? (
+            <div className="mt-4">
+              <ExplorerLink signature={resultRef.current.signature}>Creation transaction</ExplorerLink>
+            </div>
+          ) : null}
 
           <TechnicalDetails>
             <span className="block">Invoice address</span>

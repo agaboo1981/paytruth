@@ -118,7 +118,7 @@ export function mapTxError(error: unknown): MappedTxError {
   const lower = `${text} ${mapped.name ?? ''} ${mapped.message}`.toLowerCase();
   const raw = message.length > 0 ? message : undefined;
   const hasInsufficientContext =
-    /insufficientfunds|insufficient\s*(funds|lamports|sol)|not enough sol|needs sol|no record of a prior credit|may not be used to pay transaction fees|invalidaccountforfee|insufficient funds for fee/.test(
+    /insufficientfunds|insufficient\s*(funds|lamports|sol)|not enough sol|needs sol|no record of a prior credit/.test(
       lower,
     );
   const hasProgramErrorContext =
@@ -140,6 +140,17 @@ export function mapTxError(error: unknown): MappedTxError {
     return result('rejected', 'USER_REJECTED', 'You cancelled in your wallet. Nothing was sent and no money moved.');
   }
 
+  // FS SDK typed errors (c94222a): use FS's own plain-language messages.
+  if (mapped.name === 'FeePayerUnfunded') {
+    return result('failed', 'INSUFFICIENT_SOL', mapped.message);
+  }
+  if (mapped.name === 'InvoiceClosed') {
+    return result('failed', 'INVOICE_CLOSED', `${mapped.message} No money moved.`);
+  }
+  if (error instanceof Error && error.name === 'InvoiceExpiredError') {
+    return result('failed', 'INVOICE_EXPIRED', `${mapped.message} No money moved.`);
+  }
+
   if (
     /timeout|timed out|blockhashnotfound|blockhash not found|block height exceeded|blockhash.*expired/.test(
       lower,
@@ -158,7 +169,7 @@ export function mapTxError(error: unknown): MappedTxError {
     mapped.name === 'InvoiceNotFoundError' ||
     /invoice not found/i.test(lower)
   ) {
-    return result('failed', 'INVOICE_CLOSED', 'This invoice was closed by the merchant. No money moved.');
+    return result('failed', 'INVOICE_CLOSED', 'This invoice is closed and can no longer be paid. No money moved.');
   }
 
   if (

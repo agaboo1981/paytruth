@@ -5,6 +5,22 @@
   },
   {
     "step": "funding check",
-    "result": "NOT FUNDED: merchant FKoGJXKscKfNZUYp2SRmVBfpM8MyxguCdGPPqKRfXAHG SOL=0; payer 5VXVv9HfM4HvtidVth6X7jnVtZqYnV9aR2GJGPWZjPsG SOL=0 USDC=0 (need merchant>=0.05 SOL, payer>=0.02 SOL and >=2.5 USDC)"
+    "result": "funded: merchant FKoGJXKscKfNZUYp2SRmVBfpM8MyxguCdGPPqKRfXAHG SOL=0.05; payer 5VXVv9HfM4HvtidVth6X7jnVtZqYnV9aR2GJGPWZjPsG SOL=0.02 USDC=2.5 (need merchant>=0.05 SOL, payer>=0.02 SOL and >=2.5 USDC)"
+  },
+  {
+    "step": "create UI devnet A",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "result": "ok (finalized 2026-11-27 12:48:44 WAT; signature read from chain, success screen had no tx link - fixed since)",
+    "signature": "2ATXnRjcN8CADK28Yjmpaam9s4mjmskZpxeqctYodsyquK5nNzuF9VgBpFTTaPtfUsEdXVGVRLraNhHnSAzssYQZ",
+    "explorer": "https://explorer.solana.com/tx/2ATXnRjcN8CADK28Yjmpaam9s4mjmskZpxeqctYodsyquK5nNzuF9VgBpFTTaPtfUsEdXVGVRLraNhHnSAzssYQZ?cluster=devnet"
+  },
+  {
+    "step": "pay exact A",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "result": "FAILED before send: SDK verifySignedTransaction threw WalletModifiedTransactionError ('The wallet modified an instruction's accounts or data'). Payer is a read-only signer in pay_invoice; after a byte round-trip (Transaction.from on wallet output, as every Wallet Standard adapter does) the fee payer meta becomes writable. Nothing sent, no funds moved. FS SDK bug."
+  },
+  {
+    "step": "remaining (claim, dup pay, overpay/refund, expire, close)",
+    "result": "not run: blocked on the SDK bug above (expire_invoice caller is also a read-only signer). Stopped to save funds."
   }
 ]
