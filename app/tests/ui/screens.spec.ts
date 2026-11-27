@@ -1,3 +1,4 @@
+import { appPath } from '../paths';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -13,21 +14,21 @@ const viewports = [
 ];
 
 const screens: { name: string; path: string }[] = [
-  { name: 'landing', path: '/' },
-  { name: 'merchant-new', path: '/merchant/new' },
-  { name: 'pay-open', path: `/pay/${fixtureSpecs.open.pda}` },
-  { name: 'pay-overpaid', path: `/pay/${fixtureSpecs.overpaid.pda}` },
-  { name: 'pay-expired', path: `/pay/${fixtureSpecs.expired.pda}` },
-  { name: 'pay-paid', path: `/pay/${fixtureSpecs.paid.pda}` },
-  { name: 'pay-closed', path: `/pay/${fixtureSpecs.closed.pda}` },
-  { name: 'merchant-paid', path: `/merchant/${fixtureSpecs.paid.pda}` },
-  { name: 'merchant-overpaid', path: `/merchant/${fixtureSpecs.overpaid.pda}` },
-  { name: 'merchant-closed', path: `/merchant/${fixtureSpecs.closed.pda}` },
-  { name: 'verify-claimed', path: `/verify/${fixtureSpecs.claimed.pda}` },
-  { name: 'verify-expired', path: `/verify/${fixtureSpecs.expired.pda}` },
-  { name: 'verify-closed', path: `/verify/${fixtureSpecs.closed.pda}` },
-  { name: 'verify-invalid', path: '/verify/not-a-valid-address' },
-  { name: 'states', path: '/states' },
+  { name: 'landing', path: appPath('/') },
+  { name: 'merchant-new', path: appPath('/merchant/new') },
+  { name: 'pay-open', path: appPath(`/pay?invoice=${fixtureSpecs.open.pda}`) },
+  { name: 'pay-overpaid', path: appPath(`/pay?invoice=${fixtureSpecs.overpaid.pda}`) },
+  { name: 'pay-expired', path: appPath(`/pay?invoice=${fixtureSpecs.expired.pda}`) },
+  { name: 'pay-paid', path: appPath(`/pay?invoice=${fixtureSpecs.paid.pda}`) },
+  { name: 'pay-closed', path: appPath(`/pay?invoice=${fixtureSpecs.closed.pda}`) },
+  { name: 'merchant-paid', path: appPath(`/merchant?invoice=${fixtureSpecs.paid.pda}`) },
+  { name: 'merchant-overpaid', path: appPath(`/merchant?invoice=${fixtureSpecs.overpaid.pda}`) },
+  { name: 'merchant-closed', path: appPath(`/merchant?invoice=${fixtureSpecs.closed.pda}`) },
+  { name: 'verify-claimed', path: appPath(`/verify?invoice=${fixtureSpecs.claimed.pda}`) },
+  { name: 'verify-expired', path: appPath(`/verify?invoice=${fixtureSpecs.expired.pda}`) },
+  { name: 'verify-closed', path: appPath(`/verify?invoice=${fixtureSpecs.closed.pda}`) },
+  { name: 'verify-invalid', path: appPath('/verify?invoice=not-a-valid-address') },
+  { name: 'states', path: appPath('/states') },
 ];
 
 async function shoot(page: Page, name: string) {
@@ -52,7 +53,7 @@ test.describe('screens', () => {
   }
 
   test('screenshot: create invoice success share card', async ({ page }) => {
-    await page.goto('/merchant/new');
+    await page.goto(appPath('/merchant/new'));
     await page.getByLabel('Amount (USDC)').fill('42.50');
     await page.getByLabel('Description').fill('Screenshot invoice');
     await page.getByRole('button', { name: 'Create invoice' }).click();

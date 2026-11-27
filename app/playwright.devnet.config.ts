@@ -8,8 +8,8 @@ export default defineConfig({
   reporter: [['list']],
   use: { baseURL: 'http://127.0.0.1:3297', ...devices['Desktop Chrome'] },
   webServer: {
-    command: 'npm run start -- --port 3297',
-    url: 'http://127.0.0.1:3297/',
+    command: 'node scripts/serve-pages.mjs --port 3297',
+    url: 'http://127.0.0.1:3297/paytruth/',
     reuseExistingServer: false,
     timeout: 120_000,
   },

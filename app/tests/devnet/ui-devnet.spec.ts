@@ -1,3 +1,4 @@
+import { appPath } from '../paths';
 /**
  * REAL devnet E2E of the UI (real-SDK build). Signs with throwaway keypairs held
  * outside the repo (see test-wallet.ts). Writes results (signatures, PDAs; never
@@ -65,21 +66,21 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('devnet: read-only (Full-Stack runner invoices)', () => {
   test('verify A/B/C render real chain state', async ({ page }) => {
-    await page.goto(`/verify/${FS_A}`);
+    await page.goto(appPath(`/verify?invoice=${FS_A}`));
     await expect(page.getByRole('heading', { name: /Paid & claimed|Paid — confirming/ })).toBeVisible({ timeout: 60_000 });
     await shot(page, 'verify-claimed');
-    await page.goto(`/verify/${FS_B}`);
+    await page.goto(appPath(`/verify?invoice=${FS_B}`));
     await expect(page.getByRole('heading', { name: /Paid & claimed|Paid — confirming/ })).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('main')).toContainText('0.50 USDC');
     await shot(page, 'verify-refunded');
-    await page.goto(`/verify/${FS_C}`);
+    await page.goto(appPath(`/verify?invoice=${FS_C}`));
     await expect(page.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 60_000 });
     await shot(page, 'verify-closed');
-    await page.goto(`/pay/${FS_A}`);
+    await page.goto(appPath(`/pay?invoice=${FS_A}`));
     await expect(page.getByRole('heading', { name: 'This invoice is already paid' })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     await shot(page, 'pay-paid');
-    await page.goto(`/pay/${FS_C}`);
+    await page.goto(appPath(`/pay?invoice=${FS_C}`));
     await expect(page.locator('main')).toContainText(/closed by the merchant/i, { timeout: 60_000 });
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     await shot(page, 'pay-closed');
@@ -123,7 +124,7 @@ test.describe('devnet: full UI flow with test wallets', () => {
 
   async function create(amount: string, memo: string, customExpiry?: Date): Promise<string> {
     const page = await merchant.newPage();
-    await page.goto('/merchant/new');
+    await page.goto(appPath('/merchant/new'));
     await expect(page.getByRole('button', { name: 'Create invoice' })).toBeEnabled({ timeout: 30_000 });
     await page.getByLabel('Amount (USDC)').fill(amount);
     await page.getByLabel('Description').fill(memo);
@@ -157,7 +158,7 @@ test.describe('devnet: full UI flow with test wallets', () => {
     const pp = await payer.newPage();
     const mp = await merchant.newPage();
     if (!alreadyClaimed) {
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await shot(pp, 'pay-open');
     await pp.getByRole('button', { name: /^Pay 1\.00 USDC$/ }).click();
     await expect(pp.locator('main').getByRole('status').filter({ hasText: 'Check your wallet' })).toBeVisible();
@@ -165,38 +166,38 @@ test.describe('devnet: full UI flow with test wallets', () => {
     record({ step: 'pay exact A', pda, signature: await lastSignature(pp), result: 'ok' });
     }
 
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await expect(pp.getByRole('heading', { name: 'This invoice is already paid' })).toBeVisible({ timeout: 60_000 });
     await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     record({ step: 'duplicate pay A blocked in UI (no pay button)', pda, result: 'ok' });
 
     if (!alreadyClaimed) {
-    await mp.goto(`/merchant/${pda}`);
+    await mp.goto(appPath(`/merchant?invoice=${pda}`));
     await shot(mp, 'merchant-paid');
     await mp.getByRole('button', { name: 'Claim payment' }).click();
     await waitFinal(mp);
     record({ step: 'claim A', pda, signature: await lastSignature(mp), result: 'ok' });
     await shot(mp, 'merchant-claimed');
     } else {
-    await mp.goto(`/merchant/${pda}`);
+    await mp.goto(appPath(`/merchant?invoice=${pda}`));
     await expect(mp.getByRole('heading', { name: 'Paid and claimed' })).toBeVisible({ timeout: 90_000 });
     await shot(mp, 'merchant-claimed');
     }
 
-    await pp.goto(`/verify/${pda}`);
+    await pp.goto(appPath(`/verify?invoice=${pda}`));
     await expect(pp.getByRole('heading', { name: /Paid & claimed/ })).toBeVisible({ timeout: 90_000 });
     await shot(pp, 'verify-ui-a');
 
     // Paid + claimed is terminal: close it so the rent returns to the merchant.
-    await mp.goto(`/merchant/${pda}`);
+    await mp.goto(appPath(`/merchant?invoice=${pda}`));
     await mp.getByRole('button', { name: 'Close invoice' }).click();
     await expect(mp.locator('main')).toContainText('Closed — the invoice account was removed', { timeout: 150_000 });
     record({ step: 'close A (after claim)', pda, signature: await lastSignature(mp), result: 'ok' });
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await expect(pp.locator('main')).toContainText(/closed by the merchant/i, { timeout: 90_000 });
     await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     record({ step: 'pay-after-close A shows closed copy, no pay button', pda, result: 'ok' });
-    await pp.goto(`/verify/${pda}`);
+    await pp.goto(appPath(`/verify?invoice=${pda}`));
     await expect(pp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });
     await pp.close();
     await mp.close();
@@ -207,20 +208,20 @@ test.describe('devnet: full UI flow with test wallets', () => {
     test.setTimeout(600_000);
     const pda = await create('1', 'UI devnet B');
     const pp = await payer.newPage();
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await pp.getByRole('button', { name: 'Pay a different amount' }).click();
     await pp.getByLabel('Amount to pay (USDC)').fill('1.5');
     await pp.getByRole('button', { name: /^Pay 1\.50 USDC$/ }).click();
     await waitFinal(pp);
     record({ step: 'overpay B (1.50 for 1.00)', pda, signature: await lastSignature(pp), result: 'ok' });
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await expect(pp.getByRole('heading', { name: /You paid 0\.50 USDC extra/ })).toBeVisible({ timeout: 90_000 });
     await shot(pp, 'pay-overpaid');
     await pp.getByRole('button', { name: /^Refund 0\.50 USDC$/ }).click();
     await waitFinal(pp);
     record({ step: 'refund B excess', pda, signature: await lastSignature(pp), result: 'ok' });
     await shot(pp, 'pay-refunded');
-    await pp.goto(`/verify/${pda}`);
+    await pp.goto(appPath(`/verify?invoice=${pda}`));
     await expect(pp.locator('main')).toContainText('0.50 USDC', { timeout: 90_000 });
     await shot(pp, 'verify-ui-b');
     await pp.close();
@@ -243,13 +244,13 @@ test.describe('devnet: full UI flow with test wallets', () => {
     }
 
     const pp = await payer.newPage();
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await expect(pp.getByRole('heading', { name: 'This invoice has expired' })).toBeVisible({ timeout: 60_000 });
     await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     await shot(pp, 'pay-expired');
 
     const mp = await merchant.newPage();
-    await mp.goto(`/merchant/${pda}`);
+    await mp.goto(appPath(`/merchant?invoice=${pda}`));
     if (!reuseC) {
       await mp.getByRole('button', { name: 'Mark as expired' }).click();
       await waitFinal(mp);
@@ -258,20 +259,20 @@ test.describe('devnet: full UI flow with test wallets', () => {
       await expect(mp.getByRole('heading', { name: 'Expired', level: 1 })).toBeVisible({ timeout: 90_000 });
     }
     await shot(mp, 'merchant-expired');
-    await mp.goto(`/merchant/${pda}`);
+    await mp.goto(appPath(`/merchant?invoice=${pda}`));
     await mp.getByRole('button', { name: 'Close invoice' }).click();
     await expect(mp.locator('main')).toContainText('Closed — the invoice account was removed', { timeout: 150_000 });
     record({ step: 'close C', pda, signature: await lastSignature(mp), result: 'ok' });
-    await mp.goto(`/merchant/${pda}`);
+    await mp.goto(appPath(`/merchant?invoice=${pda}`));
     await expect(mp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });
     await shot(mp, 'merchant-closed');
 
-    await pp.goto(`/pay/${pda}`);
+    await pp.goto(appPath(`/pay?invoice=${pda}`));
     await expect(pp.locator('main')).toContainText(/closed by the merchant/i, { timeout: 90_000 });
     await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     await shot(pp, 'pay-after-close');
     record({ step: 'pay-after-close C shows closed copy, no pay button', pda, result: 'ok' });
-    await pp.goto(`/verify/${pda}`);
+    await pp.goto(appPath(`/verify?invoice=${pda}`));
     await expect(pp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });
     await shot(pp, 'verify-ui-c');
     await pp.close();

@@ -1,4 +1,13 @@
+const basePath = '/paytruth';
+
 const nextConfig = {
+  output: 'export',
+  basePath,
+  trailingSlash: true,
+  images: { unoptimized: true },
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath,
+  },
   reactStrictMode: true,
   transpilePackages: [
     '@solana/wallet-adapter-base',

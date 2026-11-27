@@ -1,10 +1,11 @@
+import { appPath } from '../paths';
 import { expect, test } from '@playwright/test';
 
 import { fixtureSpecs } from '../../components/ui/sdk/fixtures';
 
 test.describe('flows', () => {
   test('keyboard-only create invoice', async ({ page }) => {
-    await page.goto('/merchant/new');
+    await page.goto(appPath('/merchant/new'));
 
     // Reach the amount field with the keyboard and type.
     await page.getByLabel('Amount (USDC)').focus();
@@ -19,7 +20,7 @@ test.describe('flows', () => {
   });
 
   test('pay exact then verify shows paid', async ({ page }) => {
-    await page.goto(`/pay/${fixtureSpecs.open.pda}`);
+    await page.goto(appPath(`/pay?invoice=${fixtureSpecs.open.pda}`));
     await page.getByRole('button', { name: /^Pay 25\.00 USDC$/ }).click();
 
     const awaiting = page.getByRole('status').filter({ hasText: 'Check your wallet — approve the request to continue.' });
@@ -33,13 +34,13 @@ test.describe('flows', () => {
   });
 
   test('duplicate pay is impossible: no pay button after paid', async ({ page }) => {
-    await page.goto(`/pay/${fixtureSpecs.paid.pda}`);
+    await page.goto(appPath(`/pay?invoice=${fixtureSpecs.paid.pda}`));
     await expect(page.getByRole('heading', { name: 'This invoice is already paid' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0);
   });
 
   test('closed invoice shows closed copy and no pay button', async ({ page }) => {
-    await page.goto(`/pay/${fixtureSpecs.closed.pda}`);
+    await page.goto(appPath(`/pay?invoice=${fixtureSpecs.closed.pda}`));
     await expect(page.getByRole('heading', { name: 'This invoice was closed by the merchant' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0);
   });
@@ -48,7 +49,7 @@ test.describe('flows', () => {
     await page.addInitScript(() => {
       window.localStorage.setItem('paytruth-mock-fail', 'reject');
     });
-    await page.goto(`/pay/${fixtureSpecs.open.pda}`);
+    await page.goto(appPath(`/pay?invoice=${fixtureSpecs.open.pda}`));
     await page.getByRole('button', { name: /^Pay 25\.00 USDC$/ }).click();
     const alert = page.locator('main').getByRole('alert');
     await expect(alert).toBeVisible({ timeout: 15000 });

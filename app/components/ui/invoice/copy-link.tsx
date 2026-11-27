@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { withBasePath } from '@/lib/routes';
 import { Button } from '../button';
 import { cn } from '../utils';
 
@@ -22,7 +23,8 @@ export function CopyLink({
   }, []);
 
   async function copy() {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}${path}` : path;
+    const prefixed = withBasePath(path);
+    const url = typeof window !== 'undefined' ? `${window.location.origin}${prefixed}` : prefixed;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);

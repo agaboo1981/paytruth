@@ -1,11 +1,12 @@
 'use client';
 
+import { invoicePath, useInvoiceParam } from '@/lib/routes';
+
 import { InvoiceUnavailable } from '@/components/ui/invoice/load-error';
 
 import { PublicKey } from '@solana/web3.js';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 
 import { Address } from '@/components/ui/address';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,6 @@ import { sdk as writeSdk } from '@/components/ui/sdk/client';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
 import { decodeMemo } from '@/components/ui/sdk/format';
-import { parsePublicKey } from '@/components/ui/sdk/validate';
 import { TxStatus } from '@/components/ui/tx/tx-status';
 import { useTxAction } from '@/components/ui/tx/use-tx-action';
 
@@ -66,10 +66,8 @@ function Summary({
   );
 }
 
-export default function PayInvoicePage() {
-  const params = useParams<{ invoicePda: string }>();
-  const raw = params?.invoicePda ?? '';
-  const invoicePda = parsePublicKey(raw);
+function PayInvoiceInner() {
+  const invoicePda = useInvoiceParam();
   const view = useInvoiceView(invoicePda);
   const [showDifferent, setShowDifferent] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
@@ -133,7 +131,7 @@ export default function PayInvoicePage() {
   const memo = decodeMemo(invoice.memo);
   const now = Math.floor(Date.now() / 1000);
   const derived = derivedView(invoice, now, view.escrowBalance ?? 0n);
-  const payLink = `/pay/${invoicePda.toBase58()}`;
+  const payLink = invoicePath('pay', invoicePda.toBase58());
 
   const customParsed = parseUsdc(customAmount);
   const customUnderpay = customParsed !== null && customParsed < invoice.amountDue;
@@ -152,7 +150,7 @@ export default function PayInvoicePage() {
           </h1>
           <p className="mt-2 text-body text-muted">{derived.explanation}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href={`/verify/${invoicePda.toBase58()}`} className="inline-flex min-h-11 items-center rounded-sm border border-border px-4 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Link href={invoicePath('verify', invoicePda.toBase58())} className="inline-flex min-h-11 items-center rounded-sm border border-border px-4 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
               View on-chain status
             </Link>
           </div>
@@ -211,7 +209,7 @@ export default function PayInvoicePage() {
           <h1 className="mt-3 font-display text-headline font-bold text-fg">This invoice is already paid</h1>
           <p className="mt-2 text-body text-muted">No further payment is needed. Anyone can confirm it on-chain.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href={`/verify/${invoicePda.toBase58()}`} className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Link href={invoicePath('verify', invoicePda.toBase58())} className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
               Verify this payment
             </Link>
           </div>
@@ -232,7 +230,7 @@ export default function PayInvoicePage() {
             This invoice expired on {formatDate(invoice.expiresAt)}. No payment can be made. Ask the merchant for a new one.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href={`/verify/${invoicePda.toBase58()}`} className="inline-flex min-h-11 items-center rounded-sm border border-border px-4 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Link href={invoicePath('verify', invoicePda.toBase58())} className="inline-flex min-h-11 items-center rounded-sm border border-border px-4 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
               View on-chain status
             </Link>
           </div>
@@ -250,7 +248,7 @@ export default function PayInvoicePage() {
           <h1 className="mt-3 font-display text-headline font-bold text-fg">Payment sent into escrow</h1>
           <p className="mt-2 text-body text-muted">The merchant can now claim it. Verify the payment on-chain below.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href={`/verify/${invoicePda.toBase58()}`} className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Link href={invoicePath('verify', invoicePda.toBase58())} className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
               Verify this payment
             </Link>
           </div>
@@ -326,5 +324,13 @@ export default function PayInvoicePage() {
         </div>
       </TechnicalDetails>
     </Container>
+  );
+}
+
+export default function PayInvoicePage() {
+  return (
+    <Suspense fallback={<Container className="py-10"><Skeleton className="h-40 w-full" /></Container>}>
+      <PayInvoiceInner />
+    </Suspense>
   );
 }
