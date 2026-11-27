@@ -52,7 +52,8 @@ export type DerivedKind =
   | 'overpaid-refund-due'
   | 'refunded'
   | 'claimed'
-  | 'expired';
+  | 'expired'
+  | 'closed';
 
 export type DerivedView = {
   kind: DerivedKind;
@@ -74,6 +75,20 @@ function excessOf(invoice: Invoice): bigint {
 export function derivedView(invoice: Invoice, nowSec: number, escrowBalance: bigint): DerivedView {
   const now = BigInt(Math.floor(nowSec));
   const excess = excessOf(invoice);
+  if (invoice.status === InvoiceStatus.Closed) {
+    return {
+      kind: 'closed',
+      excess,
+      canPay: false,
+      canClaim: false,
+      canRefund: false,
+      canExpire: false,
+      canRecover: false,
+      canClose: false,
+      headline: 'Closed',
+      explanation: 'The merchant closed this invoice after it was settled. Nothing more can happen to it.',
+    };
+  }
   const isOpen = invoice.status === InvoiceStatus.Open;
   const isPaid = invoice.status === InvoiceStatus.Paid;
   const isExpired = invoice.status === InvoiceStatus.Expired;
@@ -135,6 +150,10 @@ export function derivedView(invoice: Invoice, nowSec: number, escrowBalance: big
     expired: {
       headline: 'Expired',
       explanation: 'The invoice expired without a valid payment. Any leftover funds can be recovered.',
+    },
+    closed: {
+      headline: 'Closed',
+      explanation: 'The merchant closed this invoice after it was settled. Nothing more can happen to it.',
     },
   };
 

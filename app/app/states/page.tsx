@@ -9,14 +9,16 @@ import { TxStatus } from '@/components/ui/tx/tx-status';
 const txPhases: { phase: TxPhase; label: string; state: TxState }[] = [
   { phase: 'idle', label: 'Idle', state: { status: 'idle' } },
   { phase: 'awaiting-signature', label: 'Awaiting signature', state: { status: 'awaiting-signature' } },
-  { phase: 'sending', label: 'Sending', state: { status: 'sending' } },
-  { phase: 'confirming', label: 'Confirming', state: { status: 'confirming', signature: '5wjL9x9V8d8YQvYgqK3xvKpZtGpXvHqNjWmR6cYs7TfAAAA' } },
+  { phase: 'signed', label: 'Signed — sending', state: { status: 'signed' } },
+  { phase: 'sending', label: 'Sent', state: { status: 'sending', signature: '5wjL9x9V8d8YQvYgqK3xvKpZtGpXvHqNjWmR6cYs7TfAAAA' } },
+  { phase: 'confirming', label: 'Finalizing', state: { status: 'confirming', signature: '5wjL9x9V8d8YQvYgqK3xvKpZtGpXvHqNjWmR6cYs7TfAAAA' } },
   { phase: 'confirmed', label: 'Success', state: { status: 'confirmed', signature: '5wjL9x9V8d8YQvYgqK3xvKpZtGpXvHqNjWmR6cYs7TfAAAA' } },
   { phase: 'rejected', label: 'Rejected', state: { status: 'rejected', error: { code: 'USER_REJECTED', message: 'You cancelled in your wallet. Nothing was sent and no money moved.' } } },
   { phase: 'expired', label: 'Expired', state: { status: 'expired', error: { code: 'BLOCKHASH_EXPIRED', message: "The network didn't pick this up in time. No money moved — it's safe to try again." } } },
   { phase: 'failed', label: 'Error — duplicate', state: { status: 'failed', error: { code: 'DuplicatePayment', message: 'This invoice is already paid. You were not charged again.' } } },
   { phase: 'failed', label: 'Error — underpayment', state: { status: 'failed', error: { code: 'Underpayment', message: "That's less than the amount due. Nothing was sent." } } },
   { phase: 'failed', label: 'Error — expired invoice', state: { status: 'failed', error: { code: 'InvoiceExpired', message: "This invoice has expired and can't be paid." } } },
+  { phase: 'failed', label: 'Error — invoice closed', state: { status: 'failed', error: { code: 'INVOICE_CLOSED', message: 'This invoice was closed by the merchant. No money moved.' } } },
 ];
 
 const derivedSamples: { kind: DerivedKind; headline: string; explanation: string }[] = [
@@ -27,6 +29,7 @@ const derivedSamples: { kind: DerivedKind; headline: string; explanation: string
   { kind: 'refunded', headline: 'Paid and refunded', explanation: 'The customer was paid back the extra amount. The amount due is ready to claim.' },
   { kind: 'claimed', headline: 'Paid and claimed', explanation: 'The amount due has been claimed. Once the vault is empty the invoice can be closed.' },
   { kind: 'expired', headline: 'Expired', explanation: 'The invoice expired without a valid payment. Any leftover funds can be recovered.' },
+  { kind: 'closed', headline: 'Closed', explanation: 'The merchant closed this invoice after it was settled. Nothing more can happen to it.' },
 ];
 
 export default function StatesPage() {

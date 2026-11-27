@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { CopyLink } from '@/components/ui/invoice/copy-link';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Input } from '@/components/ui/input';
-import { sdk } from '@/components/ui/sdk/client';
 import { formatUsdc, parseUsdc } from '@/components/ui/sdk/format';
+import { stagedWrites } from '@/components/ui/sdk/staged-writes';
 import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
 import { TxStatus } from '@/components/ui/tx/tx-status';
 import { useTxAction } from '@/components/ui/tx/use-tx-action';
@@ -89,16 +89,16 @@ export default function NewInvoicePage() {
   const resultRef = useRef<{ pda: string } | null>(null);
 
   const tx = useTxAction(
-    async () => {
+    async (opts) => {
       if (!publicKey) throw new Error('Connect a wallet to create an invoice.');
       if (parsedAmount === null || parsedAmount <= 0n) throw new Error('Enter a valid amount.');
       if (computedExpiry === null) throw new Error('Choose an expiry time.');
-      const result = await sdk.createInvoice({
+      const result = await stagedWrites.createInvoice({
         invoiceId: BigInt(invoiceId),
         amountDue: parsedAmount,
         expiresAt: computedExpiry,
         memo,
-      });
+      }, opts);
       resultRef.current = { pda: result.invoicePda.toBase58() };
       return { signature: result.signature };
     },

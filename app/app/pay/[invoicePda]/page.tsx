@@ -15,7 +15,7 @@ import { Field, formatDate, Money } from '@/components/ui/invoice/fields';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Skeleton } from '@/components/ui/skeleton';
 import { derivedView, formatUsdc, parseUsdc } from '@/components/ui/sdk/format';
-import { sdk } from '@/components/ui/sdk/client';
+import { stagedWrites } from '@/components/ui/sdk/staged-writes';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
 import { decodeMemo } from '@/components/ui/sdk/format';
@@ -75,11 +75,15 @@ export default function PayInvoicePage() {
   const [customAmount, setCustomAmount] = useState('');
 
   const payTx = useTxAction(
-    async () => {
+    async (opts) => {
       if (!invoicePda) throw new Error('Invalid invoice address.');
       const amount = parseUsdc(customAmount) ?? view.invoice?.amountDue ?? 0n;
       if (amount <= 0n) throw new Error('Enter a valid amount.');
-      return sdk.payInvoice({ invoicePda, amount });
+      if (!view.invoice) throw new Error('Invoice not loaded.');
+      return stagedWrites.payInvoice(
+        { invoicePda, amount, expectedAmountDue: view.invoice.amountDue },
+        opts,
+      );
     },
     {
       invoicePda: invoicePda ?? undefined,
@@ -88,9 +92,9 @@ export default function PayInvoicePage() {
   );
 
   const refundTx = useTxAction(
-    async () => {
+    async (opts) => {
       if (!invoicePda) throw new Error('Invalid invoice address.');
-      return sdk.refundOverpayment({ invoicePda });
+      return stagedWrites.refundOverpayment({ invoicePda }, opts);
     },
     {
       invoicePda: invoicePda ?? undefined,
@@ -115,7 +119,12 @@ export default function PayInvoicePage() {
   }
 
   if (view.error || !view.invoice) {
-    return <ErrorCard title="Invoice not found" body="This invoice isn't on Solana devnet. It may have been closed, or the link is wrong." />;
+    return (
+      <ErrorCard
+        title="No invoice at this address"
+        body="It may have been closed by the merchant (closing removes the account), or the link is wrong."
+      />
+    );
   }
 
   const invoice = view.invoice;
@@ -130,6 +139,26 @@ export default function PayInvoicePage() {
   const customExtra = customOverpay ? customParsed - invoice.amountDue : 0n;
 
   const afterPayConfirmed = payTx.state.status === 'confirmed';
+
+  if (invoice.status === InvoiceStatus.Closed) {
+    return (
+      <Container className="flex max-w-[640px] flex-col gap-5">
+        <div role="status" className="rounded-lg border-l-4 border-border bg-surface p-6 shadow-panel">
+          <Badge variant="default">Closed</Badge>
+          <h1 className="mt-3 font-display text-headline font-bold text-fg">
+            This invoice was closed by the merchant
+          </h1>
+          <p className="mt-2 text-body text-muted">{derived.explanation}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href={`/verify/${invoicePda.toBase58()}`} className="inline-flex min-h-11 items-center rounded-sm border border-border px-4 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+              View on-chain status
+            </Link>
+          </div>
+        </div>
+        <Summary memo={memo} merchant={invoice.merchant.toBase58()} amountDue={invoice.amountDue} expiresAt={invoice.expiresAt} />
+      </Container>
+    );
+  }
 
   // Paid already (or just paid) and no extra outstanding: show paid state, no pay button.
   if (invoice.status === InvoiceStatus.Paid && !afterPayConfirmed) {
@@ -214,6 +243,8 @@ export default function PayInvoicePage() {
       ) : (
         <Summary memo={memo} merchant={invoice.merchant.toBase58()} amountDue={invoice.amountDue} expiresAt={invoice.expiresAt} />
       )}
+
+      {afterPayConfirmed ? <TxStatus state={payTx.state} /> : null}
 
       {!afterPayConfirmed ? (
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-panel md:p-7">

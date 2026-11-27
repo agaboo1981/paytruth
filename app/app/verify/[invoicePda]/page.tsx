@@ -25,6 +25,7 @@ type Verdict = {
   body: string;
   variant: NonNullable<BadgeProps['variant']>;
   tone: string;
+  badge?: string;
 };
 
 function verdictFor(
@@ -32,6 +33,15 @@ function verdictFor(
   finalized: boolean,
   escrow: bigint,
 ): Verdict {
+  if (invoice.status === InvoiceStatus.Closed) {
+    return {
+      heading: 'Closed',
+      body: 'The merchant closed this invoice after it was settled. Nothing more can happen to it.',
+      variant: 'default',
+      tone: 'border-border',
+      badge: 'Closed',
+    };
+  }
   if (!finalized) {
     return {
       heading: 'Paid — confirming…',
@@ -116,7 +126,7 @@ export default function VerifyInvoicePage() {
           <Badge variant="default">Not found</Badge>
           <h1 className="mt-3 font-display text-headline font-bold text-fg">No invoice at this address</h1>
           <p className="mt-2 text-body text-muted">
-            This address has no invoice account on Solana devnet. It may have been closed after payment, or the link is wrong.
+            It may have been closed by the merchant (closing removes the account), or the link is wrong.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href="/verify" className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
@@ -150,7 +160,7 @@ export default function VerifyInvoicePage() {
         className={`rounded-lg border-l-4 bg-surface p-6 shadow-panel ${verdict.tone} ${finalized ? '' : 'motion-status'}`}
       >
         <Badge variant={verdict.variant}>
-          {finalized ? 'Final' : 'Confirming'}
+          {verdict.badge ?? (finalized ? 'Final' : 'Confirming')}
         </Badge>
         <h2 className="mt-3 font-display text-headline font-bold tracking-[-0.03em] text-fg">{verdict.heading}</h2>
         <p className="mt-2 max-w-[60ch] text-body text-muted">{verdict.body}</p>
@@ -166,7 +176,7 @@ export default function VerifyInvoicePage() {
       <section aria-labelledby="fields-heading" className="flex flex-col gap-3">
         <h2 id="fields-heading" className="font-display text-title font-bold text-fg">On-chain details</h2>
         <dl className="grid gap-3 sm:grid-cols-2">
-          <Field label="Status"><span className="font-semibold">{['Open', 'Paid', 'Expired'][invoice.status]}</span></Field>
+          <Field label="Status"><span className="font-semibold">{['Open', 'Paid', 'Expired', 'Closed'][invoice.status]}</span></Field>
           <Field label="Merchant"><Address address={invoice.merchant.toBase58()} /></Field>
           <Field label="Paid by">
             {invoice.payer.equals(PublicKey.default) ? 'Not paid yet' : <Address address={invoice.payer.toBase58()} />}

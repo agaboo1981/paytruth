@@ -12,6 +12,7 @@ const kindMeta: Record<DerivedKind, { badge: string; variant: BadgeVariant; tone
   refunded: { badge: 'Refunded', variant: 'pending', tone: 'border-[var(--pending)]' },
   claimed: { badge: 'Claimed', variant: 'success', tone: 'border-[var(--success)]' },
   expired: { badge: 'Expired', variant: 'default', tone: 'border-border' },
+  closed: { badge: 'Closed', variant: 'default', tone: 'border-border' },
 };
 
 export function StatusHero({

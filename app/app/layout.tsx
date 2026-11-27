@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { AppShell } from '@/components/ui/layout/app-shell';
 import { ToastProvider } from '@/components/ui/toast';
 import '@/styles/globals.css';
+import { PaytruthWalletProvider } from '@/lib/paytruth/react';
 
 export const metadata: Metadata = {
   title: 'Paytruth — invoices that prove they were paid',
@@ -31,9 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {/* Integration point (Full-Stack owns): wrap with the wallet/connection provider here. */}
-        <ToastProvider>
-          <AppShell>{children}</AppShell>
-        </ToastProvider>
+        <PaytruthWalletProvider>
+          <ToastProvider>
+            <AppShell>{children}</AppShell>
+          </ToastProvider>
+        </PaytruthWalletProvider>
       </body>
     </html>
   );

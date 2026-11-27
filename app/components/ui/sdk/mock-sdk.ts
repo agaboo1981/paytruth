@@ -1,10 +1,10 @@
 import { PublicKey } from '@solana/web3.js';
 
+import { fireSigned, fireStage, type WriteOptions } from '../../../lib/paytruth/send';
 import { encodeBase58 } from './base58';
 import { fixtureSpecs, MOCK_MINT, MOCK_PROGRAM, MOCK_WALLET } from './fixtures';
 import {
   clearFailMode,
-  randomDelay,
   readFailMode,
   readJson,
   resolveStorage,
@@ -50,6 +50,7 @@ const ERROR_CODES = {
   NothingToRecover: 6019,
   PayerNotRecorded: 6020,
   UnauthorizedMerchant: 6013,
+  InvoiceMismatch: 6022,
 } as const;
 
 type ErrorName = keyof typeof ERROR_CODES;
@@ -185,15 +186,18 @@ function fixtureToStored(label: keyof typeof fixtureSpecs, now: number): StoredI
 
 export type MockSdkOptions = {
   storage?: StorageLike | null;
+  stageDelayMs?: number;
 };
 
 export class MockPaytruthSdk implements PaytruthSdk {
   private storage: StorageLike | null;
   private listeners = new Map<string, Set<(inv: Invoice | null) => void>>();
   private seeded = false;
+  private stageDelayMs: number;
 
   constructor(options: MockSdkOptions = {}) {
     this.storage = options.storage === undefined ? resolveStorage() : options.storage;
+    this.stageDelayMs = options.stageDelayMs ?? 600;
     this.ensureSeed();
   }
 
@@ -234,19 +238,33 @@ export class MockPaytruthSdk implements PaytruthSdk {
     if (set) for (const cb of set) cb(invoice);
   }
 
-  private async gate(): Promise<void> {
+  private async stageDelay(): Promise<void> {
+    if (this.stageDelayMs <= 0) return;
+    await new Promise((resolve) => setTimeout(resolve, this.stageDelayMs));
+  }
+
+  private async runWrite<T>(opts: WriteOptions | undefined, mutate: (signature: string) => T): Promise<T> {
+    const signature = fakeSignature();
+    fireStage(opts, 'awaiting-signature');
+    await this.stageDelay();
+
     const fail = readFailMode(this.storage);
-    await randomDelay();
-    if (fail) {
-      clearFailMode(this.storage);
-      if (fail === 'reject') {
-        throw new Error('WalletSignTransactionError: User rejected the request.');
-      }
-      if (fail === 'expire') {
-        throw new Error('TransactionExpiredBlockheightExceededError: block height exceeded');
-      }
-      throw new Error('Simulation failed. custom program error: 0x1771');
+    if (fail) clearFailMode(this.storage);
+    if (fail === 'reject') throw new Error('WalletSignTransactionError: User rejected the request.');
+
+    fireStage(opts, 'signed');
+    fireSigned(opts, signature);
+    if (fail === 'error') throw new Error('Simulation failed. custom program error: 0x1771');
+
+    fireStage(opts, 'sent', { signature });
+    if (fail === 'expire') {
+      throw new Error('TransactionExpiredBlockheightExceededError: block height exceeded');
     }
+
+    await this.stageDelay();
+    const result = mutate(signature);
+    fireStage(opts, 'confirmed', { signature });
+    return result;
   }
 
   getInvoicePda(merchant: PublicKey, invoiceId: bigint): [PublicKey, number] {
@@ -294,128 +312,156 @@ export class MockPaytruthSdk implements PaytruthSdk {
     return BigInt(record.vault);
   }
 
-  async initializeConfig(): Promise<{ signature: string; configPda: PublicKey }> {
-    await this.gate();
-    return { signature: fakeSignature(), configPda: this.getConfigPda()[0] };
+  async initializeConfig(
+    _args?: unknown,
+    opts?: WriteOptions,
+  ): Promise<{ signature: string; configPda: PublicKey }> {
+    return this.runWrite(opts, (signature) => ({
+      signature,
+      configPda: this.getConfigPda()[0],
+    }));
   }
 
-  async createInvoice(args: {
-    invoiceId: bigint;
-    amountDue: bigint;
-    expiresAt: bigint;
-    memo: string | Uint8Array;
-  }): Promise<{ signature: string; invoicePda: PublicKey }> {
-    await this.gate();
-    if (args.amountDue <= 0n) throw programError('InvalidAmount');
-    if (args.expiresAt <= BigInt(nowSec())) throw programError('InvalidExpiry');
-    const memo = encodeMemo(args.memo);
+  async createInvoice(
+    args: {
+      invoiceId: bigint;
+      amountDue: bigint;
+      expiresAt: bigint;
+      memo: string | Uint8Array;
+    },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string; invoicePda: PublicKey }> {
+    return this.runWrite(opts, (signature) => {
+      if (args.amountDue <= 0n) throw programError('InvalidAmount');
+      if (args.expiresAt <= BigInt(nowSec())) throw programError('InvalidExpiry');
+      const memo = encodeMemo(args.memo);
 
-    const [pda] = this.getInvoicePda(MOCK_WALLET, args.invoiceId);
-    const invoices = this.load();
-    if (invoices[pda.toBase58()]) {
-      throw new Error('Allocate: account Address already in use. Anchor seeds constraint failed.');
-    }
-    const stored: StoredInvoice = {
-      pda: pda.toBase58(),
-      merchant: MOCK_WALLET.toBase58(),
-      payer: PublicKey.default.toBase58(),
-      mint: MOCK_MINT.toBase58(),
-      invoiceId: args.invoiceId.toString(),
-      amountDue: args.amountDue.toString(),
-      paidAmount: '0',
-      refundedExcess: '0',
-      createdAt: nowSec().toString(),
-      expiresAt: args.expiresAt.toString(),
-      status: InvoiceStatus.Open,
-      claimed: false,
-      bump: hexBump(pda.toBase58()),
-      memo,
-      vault: '0',
-    };
-    invoices[pda.toBase58()] = stored;
-    this.save(invoices);
-    this.emit(pda.toBase58());
-    return { signature: fakeSignature(), invoicePda: pda };
+      const [pda] = this.getInvoicePda(MOCK_WALLET, args.invoiceId);
+      const invoices = this.load();
+      if (invoices[pda.toBase58()]) {
+        throw new Error('Allocate: account Address already in use. Anchor seeds constraint failed.');
+      }
+      const stored: StoredInvoice = {
+        pda: pda.toBase58(),
+        merchant: MOCK_WALLET.toBase58(),
+        payer: PublicKey.default.toBase58(),
+        mint: MOCK_MINT.toBase58(),
+        invoiceId: args.invoiceId.toString(),
+        amountDue: args.amountDue.toString(),
+        paidAmount: '0',
+        refundedExcess: '0',
+        createdAt: nowSec().toString(),
+        expiresAt: args.expiresAt.toString(),
+        status: InvoiceStatus.Open,
+        claimed: false,
+        bump: hexBump(pda.toBase58()),
+        memo,
+        vault: '0',
+      };
+      invoices[pda.toBase58()] = stored;
+      this.save(invoices);
+      this.emit(pda.toBase58());
+      return { signature, invoicePda: pda };
+    });
   }
 
   private assertMerchant(record: StoredInvoice): void {
     if (record.merchant !== MOCK_WALLET.toBase58()) throw programError('UnauthorizedMerchant');
   }
 
-  async payInvoice(args: { invoicePda: PublicKey; amount: bigint }): Promise<{ signature: string }> {
-    await this.gate();
-    const invoices = this.load();
-    const key = args.invoicePda.toBase58();
-    const record = invoices[key];
-    if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
-    if (record.status !== InvoiceStatus.Open) throw programError('DuplicatePayment');
-    if (BigInt(nowSec()) >= BigInt(record.expiresAt)) throw programError('InvoiceExpired');
-    if (args.amount <= 0n) throw programError('InvalidAmount');
-    if (args.amount < BigInt(record.amountDue)) throw programError('Underpayment');
+  async payInvoice(
+    args: { invoicePda: PublicKey; amount: bigint; expectedAmountDue?: bigint },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string }> {
+    return this.runWrite(opts, (signature) => {
+      const invoices = this.load();
+      const key = args.invoicePda.toBase58();
+      const record = invoices[key];
+      if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
+      if (record.status !== InvoiceStatus.Open) throw programError('DuplicatePayment');
+      if (BigInt(nowSec()) >= BigInt(record.expiresAt)) throw programError('InvoiceExpired');
+      if (args.amount <= 0n) throw programError('InvalidAmount');
+      if (args.amount < BigInt(record.amountDue)) throw programError('Underpayment');
+      if (args.expectedAmountDue !== undefined && args.expectedAmountDue !== BigInt(record.amountDue)) {
+        throw programError('InvoiceMismatch');
+      }
 
-    record.payer = MOCK_WALLET.toBase58();
-    record.paidAmount = args.amount.toString();
-    record.status = InvoiceStatus.Paid;
-    record.vault = (BigInt(record.vault) + args.amount).toString();
-    this.save(invoices);
-    this.emit(key);
-    return { signature: fakeSignature() };
+      record.payer = MOCK_WALLET.toBase58();
+      record.paidAmount = args.amount.toString();
+      record.status = InvoiceStatus.Paid;
+      record.vault = (BigInt(record.vault) + args.amount).toString();
+      this.save(invoices);
+      this.emit(key);
+      return { signature };
+    });
   }
 
-  async merchantClaim(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
-    await this.gate();
-    const invoices = this.load();
-    const key = args.invoicePda.toBase58();
-    const record = invoices[key];
-    if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
-    this.assertMerchant(record);
-    if (record.status !== InvoiceStatus.Paid) throw programError('InvoiceNotPaid');
-    if (record.claimed) throw programError('AlreadyClaimed');
+  async merchantClaim(
+    args: { invoicePda: PublicKey },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string }> {
+    return this.runWrite(opts, (signature) => {
+      const invoices = this.load();
+      const key = args.invoicePda.toBase58();
+      const record = invoices[key];
+      if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
+      this.assertMerchant(record);
+      if (record.status !== InvoiceStatus.Paid) throw programError('InvoiceNotPaid');
+      if (record.claimed) throw programError('AlreadyClaimed');
 
-    record.claimed = true;
-    const amountDue = BigInt(record.amountDue);
-    record.vault = (BigInt(record.vault) - amountDue).toString();
-    this.save(invoices);
-    this.emit(key);
-    return { signature: fakeSignature() };
+      record.claimed = true;
+      const amountDue = BigInt(record.amountDue);
+      record.vault = (BigInt(record.vault) - amountDue).toString();
+      this.save(invoices);
+      this.emit(key);
+      return { signature };
+    });
   }
 
-  async refundOverpayment(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
-    await this.gate();
-    const invoices = this.load();
-    const key = args.invoicePda.toBase58();
-    const record = invoices[key];
-    if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
-    if (record.status !== InvoiceStatus.Paid) throw programError('InvoiceNotPaid');
-    if (record.payer === PublicKey.default.toBase58()) throw programError('PayerNotRecorded');
-    const paid = BigInt(record.paidAmount);
-    const due = BigInt(record.amountDue);
-    if (paid <= due) throw programError('NothingToRefund');
-    if (BigInt(record.refundedExcess) !== 0n) throw programError('AlreadyRefunded');
-    const excess = paid - due;
-    record.refundedExcess = excess.toString();
-    record.vault = (BigInt(record.vault) - excess).toString();
-    this.save(invoices);
-    this.emit(key);
-    return { signature: fakeSignature() };
+  async refundOverpayment(
+    args: { invoicePda: PublicKey },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string }> {
+    return this.runWrite(opts, (signature) => {
+      const invoices = this.load();
+      const key = args.invoicePda.toBase58();
+      const record = invoices[key];
+      if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
+      if (record.status !== InvoiceStatus.Paid) throw programError('InvoiceNotPaid');
+      if (record.payer === PublicKey.default.toBase58()) throw programError('PayerNotRecorded');
+      const paid = BigInt(record.paidAmount);
+      const due = BigInt(record.amountDue);
+      if (paid <= due) throw programError('NothingToRefund');
+      if (BigInt(record.refundedExcess) !== 0n) throw programError('AlreadyRefunded');
+      const excess = paid - due;
+      record.refundedExcess = excess.toString();
+      record.vault = (BigInt(record.vault) - excess).toString();
+      this.save(invoices);
+      this.emit(key);
+      return { signature };
+    });
   }
 
-  async expireInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
-    await this.gate();
-    const invoices = this.load();
-    const key = args.invoicePda.toBase58();
-    const record = invoices[key];
-    if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
-    if (record.status !== InvoiceStatus.Open) throw programError('InvoiceNotOpen');
-    if (BigInt(nowSec()) < BigInt(record.expiresAt)) throw programError('NotExpired');
-    record.status = InvoiceStatus.Expired;
-    this.save(invoices);
-    this.emit(key);
-    return { signature: fakeSignature() };
+  async expireInvoice(
+    args: { invoicePda: PublicKey },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string }> {
+    return this.runWrite(opts, (signature) => {
+      const invoices = this.load();
+      const key = args.invoicePda.toBase58();
+      const record = invoices[key];
+      if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
+      if (record.status !== InvoiceStatus.Open) throw programError('InvoiceNotOpen');
+      if (BigInt(nowSec()) < BigInt(record.expiresAt)) throw programError('NotExpired');
+      record.status = InvoiceStatus.Expired;
+      this.save(invoices);
+      this.emit(key);
+      return { signature };
+    });
   }
 
   private assertTerminal(record: StoredInvoice): void {
-    if (record.status === InvoiceStatus.Expired) return;
+    if (record.status === InvoiceStatus.Expired || record.status === InvoiceStatus.Closed) return;
     const excess = BigInt(record.paidAmount) - BigInt(record.amountDue);
     if (record.status === InvoiceStatus.Paid && record.claimed) {
       if (excess > 0n && BigInt(record.refundedExcess) !== excess) throw programError('ExcessOutstanding');
@@ -424,37 +470,45 @@ export class MockPaytruthSdk implements PaytruthSdk {
     throw programError('InvoiceNotTerminal');
   }
 
-  async recoverUnattributed(args: {
-    invoicePda: PublicKey;
-    destinationAta: PublicKey;
-  }): Promise<{ signature: string }> {
-    await this.gate();
-    const invoices = this.load();
-    const key = args.invoicePda.toBase58();
-    const record = invoices[key];
-    if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
-    this.assertMerchant(record);
-    this.assertTerminal(record);
-    if (BigInt(record.vault) <= 0n) throw programError('NothingToRecover');
-    record.vault = '0';
-    this.save(invoices);
-    this.emit(key);
-    return { signature: fakeSignature() };
+  async recoverUnattributed(
+    args: {
+      invoicePda: PublicKey;
+      destinationAta: PublicKey;
+    },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string }> {
+    return this.runWrite(opts, (signature) => {
+      const invoices = this.load();
+      const key = args.invoicePda.toBase58();
+      const record = invoices[key];
+      if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
+      this.assertMerchant(record);
+      this.assertTerminal(record);
+      if (BigInt(record.vault) <= 0n) throw programError('NothingToRecover');
+      record.vault = '0';
+      this.save(invoices);
+      this.emit(key);
+      return { signature };
+    });
   }
 
-  async closeInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
-    await this.gate();
-    const invoices = this.load();
-    const key = args.invoicePda.toBase58();
-    const record = invoices[key];
-    if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
-    this.assertMerchant(record);
-    this.assertTerminal(record);
-    if (BigInt(record.vault) !== 0n) throw programError('VaultNotEmpty');
-    delete invoices[key];
-    this.save(invoices);
-    this.emit(key);
-    return { signature: fakeSignature() };
+  async closeInvoice(
+    args: { invoicePda: PublicKey },
+    opts?: WriteOptions,
+  ): Promise<{ signature: string }> {
+    return this.runWrite(opts, (signature) => {
+      const invoices = this.load();
+      const key = args.invoicePda.toBase58();
+      const record = invoices[key];
+      if (!record) throw new Error('Account does not exist or has no data: invoice not found.');
+      this.assertMerchant(record);
+      this.assertTerminal(record);
+      if (BigInt(record.vault) !== 0n) throw programError('VaultNotEmpty');
+      delete invoices[key];
+      this.save(invoices);
+      this.emit(key);
+      return { signature };
+    });
   }
 
   async waitForInvoiceState(
@@ -486,9 +540,8 @@ export class MockPaytruthSdk implements PaytruthSdk {
       this.listeners.set(key, set);
     }
     set.add(cb);
-    void this.fetchInvoice(invoicePda)
-      .then((invoice) => cb(invoice))
-      .catch(() => cb(null));
+    // Mirror the real SDK (connection.onAccountChange): only fire on changes, never on subscribe.
+    // An initial callback here makes useInvoice re-subscribe in a loop.
     return () => {
       set?.delete(cb);
     };

@@ -10,9 +10,10 @@ type BadgeVariant = NonNullable<BadgeProps['variant']>;
 const labels: Record<TxPhase, string> = {
   idle: 'Ready',
   'awaiting-signature': 'Waiting for your wallet',
-  sending: 'Sending to Solana',
-  confirming: 'Confirming on Solana',
-  confirmed: 'Confirmed on Solana',
+  signed: 'Approved',
+  sending: 'Sent to Solana',
+  confirming: 'Finalizing',
+  confirmed: 'Done',
   failed: "Couldn't complete",
   rejected: 'You cancelled',
   expired: 'Transaction expired',
@@ -21,6 +22,7 @@ const labels: Record<TxPhase, string> = {
 const tones: Record<TxPhase, BadgeVariant> = {
   idle: 'default',
   'awaiting-signature': 'pending',
+  signed: 'pending',
   sending: 'pending',
   confirming: 'pending',
   confirmed: 'success',
@@ -31,15 +33,21 @@ const tones: Record<TxPhase, BadgeVariant> = {
 
 const progressCopy: Partial<Record<TxPhase, string>> = {
   'awaiting-signature': 'Check your wallet — approve the request to continue.',
-  sending: 'Sending to Solana… (if your wallet is still open, approve it there)',
-  confirming: 'Sent. Waiting for the network to confirm — usually a few seconds.',
-  confirmed: 'Done. Confirmed on Solana.',
+  signed: 'Approved. Sending to Solana…',
+  sending: 'Sent. Waiting for the network to confirm — usually a few seconds.',
+  confirming: 'Confirmed. Waiting for it to be final…',
+  confirmed: 'Done. Final on Solana.',
   rejected: 'You cancelled in your wallet. Nothing was sent and no money moved.',
   expired: "The network didn't pick this up in time. No money moved — it's safe to try again.",
 };
 
 function isInFlight(status: TxPhase): boolean {
-  return status === 'awaiting-signature' || status === 'sending' || status === 'confirming';
+  return (
+    status === 'awaiting-signature' ||
+    status === 'signed' ||
+    status === 'sending' ||
+    status === 'confirming'
+  );
 }
 
 function isError(status: TxPhase): boolean {
@@ -95,8 +103,9 @@ export function TxStatus({
       </div>
       {message ? (
         <p
+          key={state.status}
           className={cn(
-            'text-small',
+            'status-message text-small',
             state.status === 'failed' ? 'text-danger' : state.status === 'confirmed' ? 'text-success' : 'text-fg',
           )}
         >

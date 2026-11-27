@@ -14,6 +14,8 @@ export type InvoiceAction = {
   description: ReactNode;
   send: TxActionRun;
   waitFor?: (invoice: Invoice) => boolean;
+  skipWaitFor?: boolean;
+  onConfirmed?: () => void | Promise<void>;
   variant?: 'primary' | 'secondary' | 'danger';
   disabledReason?: string;
   note?: ReactNode;
@@ -29,6 +31,8 @@ export function ActionCard({
   const tx = useTxAction(action.send, {
     invoicePda,
     waitFor: action.waitFor,
+    skipWaitFor: action.skipWaitFor,
+    onConfirmed: action.onConfirmed,
   });
 
   return (

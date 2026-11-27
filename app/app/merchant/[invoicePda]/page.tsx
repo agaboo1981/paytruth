@@ -17,7 +17,7 @@ import { StatusHero } from '@/components/ui/invoice/status-hero';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Skeleton } from '@/components/ui/skeleton';
 import { derivedView } from '@/components/ui/sdk/format';
-import { sdk } from '@/components/ui/sdk/client';
+import { stagedWrites } from '@/components/ui/sdk/staged-writes';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
 import { parsePublicKey } from '@/components/ui/sdk/validate';
@@ -39,13 +39,36 @@ function ErrorCard({ title, body }: { title: string; body: string }) {
   );
 }
 
+function ClosedStateCard() {
+  return (
+    <Container>
+      <div role="status" className="rounded-lg border border-border bg-surface p-6 shadow-panel">
+        <Badge variant="default">Closed</Badge>
+        <h1 className="mt-3 font-display text-headline font-bold tracking-[-0.03em] text-fg">
+          Closed — the invoice account was removed and its rent returned to you.
+        </h1>
+        <p className="mt-2 max-w-[60ch] text-body text-muted">
+          Nothing more can happen to this invoice. You can still verify the settled payment.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/merchant/new" className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            Create another invoice
+          </Link>
+        </div>
+      </div>
+    </Container>
+  );
+}
+
 function Timeline({ invoice }: { invoice: import('@/components/ui/sdk/types').Invoice }) {
   type Step = { label: string; at: bigint | null; done: boolean };
   const steps: Step[] = [
     { label: 'Created', at: invoice.createdAt, done: true },
     { label: 'Paid', at: invoice.status === InvoiceStatus.Open ? null : null, done: invoice.status !== InvoiceStatus.Open },
   ];
-  if (invoice.status === InvoiceStatus.Expired) {
+  if (invoice.status === InvoiceStatus.Closed) {
+    steps.push({ label: 'Closed', at: null, done: true });
+  } else if (invoice.status === InvoiceStatus.Expired) {
     steps.push({ label: 'Expired', at: invoice.expiresAt, done: true });
   } else if (invoice.claimed) {
     steps.push({ label: 'Claimed', at: null, done: true });
@@ -85,6 +108,7 @@ export default function MerchantInvoicePage() {
   const invoicePda = parsePublicKey(raw);
   const { publicKey } = useWalletKey();
   const view = useInvoiceView(invoicePda);
+  const [closedLocally, setClosedLocally] = useState(false);
 
   if (!invoicePda) {
     return <ErrorCard title="That address isn't valid" body="An invoice address must be a 32-byte base58 Solana address. Check the link and try again." />;
@@ -100,6 +124,8 @@ export default function MerchantInvoicePage() {
     );
   }
 
+  if (closedLocally) return <ClosedStateCard />;
+
   if (view.errorKind === 'unavailable') {
     return <InvoiceUnavailable message={view.error?.message} onRetry={view.refresh} />;
   }
@@ -112,7 +138,7 @@ export default function MerchantInvoicePage() {
   const now = Math.floor(Date.now() / 1000);
   const derived = derivedView(invoice, now, view.escrowBalance ?? 0n);
   const isMerchant = publicKey ? publicKey.equals(invoice.merchant) : false;
-  const closedState = view.error !== null;
+  const closedState = derived.kind === 'closed';
 
   return (
     <Container className="flex flex-col gap-6">
@@ -170,6 +196,7 @@ export default function MerchantInvoicePage() {
             finalized={view.finalized}
             closed={closedState}
             onRefresh={view.refresh}
+            onClosed={() => setClosedLocally(true)}
           />
         )}
       </section>
@@ -184,6 +211,7 @@ function ActionPanel({
   finalized,
   closed,
   onRefresh,
+  onClosed,
 }: {
   invoicePda: PublicKey;
   invoice: import('@/components/ui/sdk/types').Invoice;
@@ -191,11 +219,18 @@ function ActionPanel({
   finalized: boolean;
   closed: boolean;
   onRefresh: () => void;
+  onClosed: () => void;
 }) {
   const [destination, setDestination] = useState('');
   const destinationAta = useMemo(() => parsePublicKey(destination), [destination]);
-  const closeTx = useTxAction(async () => sdk.closeInvoice({ invoicePda }), {
+  const closeTx = useTxAction(async (opts) => stagedWrites.closeInvoice({ invoicePda }, opts), {
     invoicePda,
+    waitFor: (inv) => inv.status === InvoiceStatus.Closed,
+    skipWaitFor: true,
+    onConfirmed: () => {
+      onClosed();
+      onRefresh();
+    },
   });
 
   return (
@@ -209,7 +244,7 @@ function ActionPanel({
             description: 'Move the amount due from escrow into your wallet.',
             note: finalized ? null : "Wait for 'Final' before handing over goods.",
             variant: 'primary',
-            send: async () => sdk.merchantClaim({ invoicePda }),
+            send: async (opts) => stagedWrites.merchantClaim({ invoicePda }, opts),
             waitFor: (inv) => inv.claimed,
           }}
         />
@@ -222,7 +257,7 @@ function ActionPanel({
             key: 'refund',
             label: 'Refund extra to customer',
             description: 'Send the overpayment back to the wallet that paid.',
-            send: async () => sdk.refundOverpayment({ invoicePda }),
+            send: async (opts) => stagedWrites.refundOverpayment({ invoicePda }, opts),
             waitFor: (inv) => inv.refundedExcess > 0n,
           }}
         />
@@ -235,7 +270,7 @@ function ActionPanel({
             key: 'expire',
             label: 'Mark as expired',
             description: 'The expiry time has passed. Mark it expired so it can no longer be paid.',
-            send: async () => sdk.expireInvoice({ invoicePda }),
+            send: async (opts) => stagedWrites.expireInvoice({ invoicePda }, opts),
             waitFor: (inv) => inv.status === InvoiceStatus.Expired,
           }}
         />
@@ -278,7 +313,9 @@ function ActionPanel({
           <TxStatus state={closeTx.state} />
           {closeTx.state.status === 'confirmed' ? (
             <div className="flex flex-col gap-2 rounded-sm border border-[var(--success)] p-3">
-              <p className="text-small font-semibold text-success">Closed — account removed.</p>
+              <p className="text-small font-semibold text-success">
+                Closed — the invoice account was removed and its rent returned to you.
+              </p>
               <Button variant="ghost" onClick={onRefresh}>Refresh</Button>
             </div>
           ) : null}
@@ -296,7 +333,7 @@ function ActionPanel({
           <dl className="grid gap-2">
             <div className="flex justify-between gap-3"><dt>Invoice address</dt><dd className="break-all font-mono text-fg">{invoicePda.toBase58()}</dd></div>
             <div className="flex justify-between gap-3"><dt>Invoice number</dt><dd className="font-mono text-fg">{invoice.invoiceId.toString()}</dd></div>
-            <div className="flex justify-between gap-3"><dt>Status</dt><dd className="text-fg">{['Open', 'Paid', 'Expired'][invoice.status]}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Status</dt><dd className="text-fg">{['Open', 'Paid', 'Expired', 'Closed'][invoice.status]}</dd></div>
             <div className="flex justify-between gap-3"><dt>Closed</dt><dd className="text-fg">{closed ? 'Yes' : 'No'}</dd></div>
           </dl>
         </TechnicalDetails>
@@ -307,9 +344,9 @@ function ActionPanel({
 
 function RecoverButton({ invoicePda, destination }: { invoicePda: PublicKey; destination: PublicKey | null }) {
   const tx = useTxAction(
-    async () => {
+    async (opts) => {
       if (!destination) throw new Error('Enter the destination token account address.');
-      return sdk.recoverUnattributed({ invoicePda, destinationAta: destination });
+      return stagedWrites.recoverUnattributed({ invoicePda, destinationAta: destination }, opts);
     },
     { invoicePda },
   );

@@ -3,20 +3,21 @@
 import { PublicKey } from '@solana/web3.js';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
+import type { WriteOptions } from '../../../lib/paytruth';
 import { sdk } from '../sdk/client';
 import type { Invoice } from '../sdk/types';
 import { mapTxError, type MappedTxError } from './tx-errors';
 import { initialTxState, txReducer, type TxEvent, type TxPhase, type TxState } from './tx-machine';
 
 export type TxActionOptions = {
-  /** Predicate the invoice account must satisfy before we call it confirmed. */
   waitFor?: (invoice: Invoice) => boolean;
-  /** Invoice PDA to poll after the write resolves. Omit to skip account polling. */
   invoicePda?: PublicKey;
   waitTimeoutMs?: number;
+  skipWaitFor?: boolean;
+  onConfirmed?: () => void | Promise<void>;
 };
 
-export type TxActionRun = () => Promise<{ signature: string }>;
+export type TxActionRun = (opts: WriteOptions) => Promise<{ signature: string }>;
 
 export type UseTxActionResult = {
   state: TxState;
@@ -26,7 +27,12 @@ export type UseTxActionResult = {
 };
 
 function isInFlight(status: TxPhase): boolean {
-  return status === 'awaiting-signature' || status === 'sending' || status === 'confirming';
+  return (
+    status === 'awaiting-signature' ||
+    status === 'signed' ||
+    status === 'sending' ||
+    status === 'confirming'
+  );
 }
 
 function eventForMappedError(mapped: MappedTxError): TxEvent {
@@ -35,62 +41,60 @@ function eventForMappedError(mapped: MappedTxError): TxEvent {
   return { type: 'FAIL', error: mapped.error };
 }
 
-/**
- * Drives one write through the mock/real SDK. Because SDK writes only resolve
- * after confirmation, we start at awaiting-signature, nudge to sending after a
- * short grace period, then poll the account before declaring success.
- */
 export function useTxAction(action: TxActionRun, options: TxActionOptions = {}): UseTxActionResult {
   const [state, dispatch] = useReducer(txReducer, initialTxState);
   const actionRef = useRef(action);
   actionRef.current = action;
   const optionsRef = useRef(options);
   optionsRef.current = options;
-  const sendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (sendingTimer.current) clearTimeout(sendingTimer.current);
     };
   }, []);
 
   const reset = useCallback(() => {
-    if (sendingTimer.current) clearTimeout(sendingTimer.current);
     dispatch({ type: 'RESET' });
   }, []);
 
   const run = useCallback(() => {
-    if (sendingTimer.current) clearTimeout(sendingTimer.current);
     dispatch({ type: 'RESET' });
     dispatch({ type: 'SUBMIT' });
 
-    sendingTimer.current = setTimeout(() => {
-      dispatch({ type: 'SIGNED' });
-    }, 1200);
-
+    let stageSignature = '';
     void (async () => {
       try {
-        const result = await actionRef.current();
+        const result = await actionRef.current({
+          onStage(stage, info) {
+            if (!mounted.current) return;
+            if (info?.signature) stageSignature = info.signature;
+            if (stage === 'awaiting-signature') dispatch({ type: 'SUBMIT' });
+            if (stage === 'signed') dispatch({ type: 'SIGNED' });
+            if (stage === 'sent') dispatch({ type: 'SENT', signature: info?.signature ?? stageSignature });
+            if (stage === 'confirmed') {
+              dispatch({ type: 'CONFIRMING', signature: info?.signature ?? stageSignature });
+            }
+          },
+        });
 
-        if (sendingTimer.current) clearTimeout(sendingTimer.current);
+        const signature = result.signature || stageSignature;
+        dispatch({ type: 'CONFIRMING', signature });
 
-        const { invoicePda, waitFor, waitTimeoutMs } = optionsRef.current;
-        if (invoicePda && waitFor) {
-          dispatch({ type: 'CONFIRMING', signature: result.signature });
+        const { invoicePda, waitFor, waitTimeoutMs, skipWaitFor } = optionsRef.current;
+        if (invoicePda && waitFor && !skipWaitFor) {
           await sdk.waitForInvoiceState(invoicePda, waitFor, {
             commitment: 'finalized',
             timeoutMs: waitTimeoutMs ?? 60000,
           });
-        } else {
-          dispatch({ type: 'CONFIRMING', signature: result.signature });
         }
 
-        if (mounted.current) dispatch({ type: 'CONFIRMED', signature: result.signature });
+        if (!mounted.current) return;
+        dispatch({ type: 'CONFIRMED', signature });
+        await optionsRef.current.onConfirmed?.();
       } catch (error) {
-        if (sendingTimer.current) clearTimeout(sendingTimer.current);
         if (mounted.current) dispatch(eventForMappedError(mapTxError(error)));
       }
     })();

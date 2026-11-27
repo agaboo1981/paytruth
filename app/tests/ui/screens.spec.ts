@@ -19,10 +19,13 @@ const screens: { name: string; path: string }[] = [
   { name: 'pay-overpaid', path: `/pay/${fixtureSpecs.overpaid.pda}` },
   { name: 'pay-expired', path: `/pay/${fixtureSpecs.expired.pda}` },
   { name: 'pay-paid', path: `/pay/${fixtureSpecs.paid.pda}` },
+  { name: 'pay-closed', path: `/pay/${fixtureSpecs.closed.pda}` },
   { name: 'merchant-paid', path: `/merchant/${fixtureSpecs.paid.pda}` },
   { name: 'merchant-overpaid', path: `/merchant/${fixtureSpecs.overpaid.pda}` },
+  { name: 'merchant-closed', path: `/merchant/${fixtureSpecs.closed.pda}` },
   { name: 'verify-claimed', path: `/verify/${fixtureSpecs.claimed.pda}` },
   { name: 'verify-expired', path: `/verify/${fixtureSpecs.expired.pda}` },
+  { name: 'verify-closed', path: `/verify/${fixtureSpecs.closed.pda}` },
   { name: 'verify-invalid', path: '/verify/not-a-valid-address' },
   { name: 'states', path: '/states' },
 ];

@@ -1,6 +1,7 @@
 export type TxPhase =
   | 'idle'
   | 'awaiting-signature'
+  | 'signed'
   | 'sending'
   | 'confirming'
   | 'confirmed'
@@ -40,7 +41,12 @@ const expiredError: TxError = {
 };
 
 function isInFlight(status: TxPhase): boolean {
-  return status === 'awaiting-signature' || status === 'sending' || status === 'confirming';
+  return (
+    status === 'awaiting-signature' ||
+    status === 'signed' ||
+    status === 'sending' ||
+    status === 'confirming'
+  );
 }
 
 export function txReducer(state: TxState, event: TxEvent): TxState {
@@ -48,9 +54,11 @@ export function txReducer(state: TxState, event: TxEvent): TxState {
     case 'SUBMIT':
       return state.status === 'idle' ? { status: 'awaiting-signature' } : state;
     case 'SIGNED':
-      return state.status === 'awaiting-signature' ? { ...state, status: 'sending' } : state;
+      return state.status === 'awaiting-signature' ? { ...state, status: 'signed' } : state;
     case 'SENT':
-      return state.status === 'awaiting-signature' || state.status === 'sending'
+      return state.status === 'awaiting-signature' ||
+        state.status === 'signed' ||
+        state.status === 'sending'
         ? { ...state, status: 'sending', signature: event.signature, error: undefined }
         : state;
     case 'CONFIRMING':

@@ -23,7 +23,12 @@ export type TxPanelProps = {
 };
 
 function isInFlight(status: TxPhase): boolean {
-  return status === 'awaiting-signature' || status === 'sending' || status === 'confirming';
+  return (
+    status === 'awaiting-signature' ||
+    status === 'signed' ||
+    status === 'sending' ||
+    status === 'confirming'
+  );
 }
 
 function isError(status: TxPhase): status is 'failed' | 'rejected' | 'expired' {

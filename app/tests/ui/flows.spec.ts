@@ -21,6 +21,11 @@ test.describe('flows', () => {
   test('pay exact then verify shows paid', async ({ page }) => {
     await page.goto(`/pay/${fixtureSpecs.open.pda}`);
     await page.getByRole('button', { name: /^Pay 25\.00 USDC$/ }).click();
+
+    const awaiting = page.getByRole('status').filter({ hasText: 'Check your wallet — approve the request to continue.' });
+    await expect(awaiting).toBeVisible();
+    const done = page.getByRole('status').filter({ hasText: 'Done. Final on Solana.' });
+    await expect(done).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('heading', { name: 'Payment sent into escrow' })).toBeVisible({ timeout: 15000 });
 
     await page.getByRole('link', { name: 'Verify this payment' }).click();
@@ -30,6 +35,12 @@ test.describe('flows', () => {
   test('duplicate pay is impossible: no pay button after paid', async ({ page }) => {
     await page.goto(`/pay/${fixtureSpecs.paid.pda}`);
     await expect(page.getByRole('heading', { name: 'This invoice is already paid' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0);
+  });
+
+  test('closed invoice shows closed copy and no pay button', async ({ page }) => {
+    await page.goto(`/pay/${fixtureSpecs.closed.pda}`);
+    await expect(page.getByRole('heading', { name: 'This invoice was closed by the merchant' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0);
   });
 

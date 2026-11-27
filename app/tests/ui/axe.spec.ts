@@ -12,8 +12,11 @@ const routes: { name: string; path: string }[] = [
   { name: 'pay-open', path: `/pay/${fixtureSpecs.open.pda}` },
   { name: 'pay-overpaid', path: `/pay/${fixtureSpecs.overpaid.pda}` },
   { name: 'pay-expired', path: `/pay/${fixtureSpecs.expired.pda}` },
+  { name: 'pay-closed', path: `/pay/${fixtureSpecs.closed.pda}` },
   { name: 'merchant-paid', path: `/merchant/${fixtureSpecs.paid.pda}` },
+  { name: 'merchant-closed', path: `/merchant/${fixtureSpecs.closed.pda}` },
   { name: 'verify-claimed', path: `/verify/${fixtureSpecs.claimed.pda}` },
+  { name: 'verify-closed', path: `/verify/${fixtureSpecs.closed.pda}` },
   { name: 'states', path: '/states' },
 ];
 
