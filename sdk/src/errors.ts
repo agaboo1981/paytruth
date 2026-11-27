@@ -195,6 +195,60 @@ export class MainnetRefusedError extends PaytruthError {
   }
 }
 
+const FEE_PAYER_UNFUNDED_MESSAGE =
+  'This wallet needs a little SOL to pay network fees. Fund it with SOL and try again.';
+const INVOICE_CLOSED_MESSAGE = 'This invoice is closed and can no longer be paid.';
+
+/** The fee-paying wallet has no SOL (unfunded / never-credited account). */
+export class FeePayerUnfundedError extends PaytruthError {
+  override name = 'FeePayerUnfundedError';
+  readonly mapped: MappedError;
+  constructor(options?: { cause?: unknown }) {
+    super(FEE_PAYER_UNFUNDED_MESSAGE, options);
+    this.mapped = {
+      kind: 'rpc',
+      name: 'FeePayerUnfunded',
+      message: FEE_PAYER_UNFUNDED_MESSAGE,
+      retryable: false,
+      raw: options?.cause ?? this,
+    };
+  }
+}
+
+/** Payment attempted on a Closed (tombstoned) invoice. Never "already paid". */
+export class InvoiceClosedError extends PaytruthError {
+  override name = 'InvoiceClosedError';
+  readonly mapped: MappedError;
+  constructor(public readonly invoicePda: string, options?: { cause?: unknown }) {
+    super(INVOICE_CLOSED_MESSAGE, options);
+    this.mapped = {
+      kind: 'program',
+      name: 'InvoiceClosed',
+      message: INVOICE_CLOSED_MESSAGE,
+      retryable: false,
+      raw: options?.cause ?? this,
+    };
+  }
+}
+
+/** Payment attempted on an expired invoice (detected client-side or disambiguated). */
+export class InvoiceExpiredError extends PaytruthError {
+  override name = 'InvoiceExpiredError';
+  readonly mapped: MappedError;
+  constructor(public readonly invoicePda: string, options?: { cause?: unknown }) {
+    const message = PAYTRUTH_ERRORS[6003]?.message ?? 'This invoice has expired.';
+    super(message, options);
+    this.mapped = {
+      kind: 'program',
+      code: 6003,
+      name: 'InvoiceExpired',
+      message,
+      retryable: false,
+      raw: options?.cause ?? this,
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -363,6 +417,11 @@ export function mapError(err: unknown): MappedError {
     return { kind: 'unknown', message: 'Unknown error.', retryable: false, raw };
   }
 
+  // Unfunded fee payer (RPC simulation / TransactionError InvalidAccountForFee).
+  if (/may not be used to pay transaction fees|InvalidAccountForFee/i.test(text)) {
+    return feePayerUnfunded(raw);
+  }
+
   // System "already in use".
   if (/already in use/i.test(text) && /(Allocate|account)/i.test(text)) {
     return {
@@ -389,12 +448,7 @@ export function mapError(err: unknown): MappedError {
 
   // Need SOL for fees.
   if (/attempt to debit an account but found no record of a prior credit/i.test(text)) {
-    return {
-      kind: 'rpc',
-      message: 'This wallet needs SOL to pay transaction fees. Airdrop or fund it and try again.',
-      retryable: false,
-      raw,
-    };
+    return feePayerUnfunded(raw);
   }
 
   // RPC retryables.
@@ -424,6 +478,10 @@ export function mapError(err: unknown): MappedError {
   }
 
   return { kind: 'unknown', message: text, retryable: false, raw };
+}
+
+function feePayerUnfunded(raw: unknown): MappedError {
+  return { kind: 'rpc', name: 'FeePayerUnfunded', message: FEE_PAYER_UNFUNDED_MESSAGE, retryable: false, raw };
 }
 
 function token(raw: unknown): MappedError {

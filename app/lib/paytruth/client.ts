@@ -9,7 +9,14 @@ import {
   fetchInvoiceOrNull as fetchInvoiceOrNullFn,
 } from './accounts';
 import { MAINNET_BETA_GENESIS_HASH } from './constants';
-import { MainnetRefusedError, PaytruthError, TxTimeoutError, mapError } from './errors';
+import {
+  InvoiceClosedError,
+  InvoiceExpiredError,
+  MainnetRefusedError,
+  PaytruthError,
+  TxTimeoutError,
+  mapError,
+} from './errors';
 import {
   buildCloseInvoiceIx,
   buildCreateInvoiceIx,
@@ -339,6 +346,12 @@ export class PaytruthClient implements PaytruthSdk {
   ): Promise<{ signature: string; recovered: boolean }> {
     const wallet = this.requireWallet();
     const invoice = await this.fetchInvoice(args.invoicePda, 'confirmed');
+    // Preflight: never ask the wallet to sign a payment the program will reject
+    // for a terminal status, and never let a Closed/Expired invoice surface as
+    // "already paid" (the program maps every non-Open status to DuplicatePayment).
+    const pdaStr = args.invoicePda.toBase58();
+    if (invoice.status === InvoiceStatus.Closed) throw new InvoiceClosedError(pdaStr);
+    if (invoice.status === InvoiceStatus.Expired) throw new InvoiceExpiredError(pdaStr);
     const instructions = [
       await buildPayInvoiceIx(
         {
@@ -352,12 +365,36 @@ export class PaytruthClient implements PaytruthSdk {
         this.connection,
       ),
     ];
-    return this.writeWithRecovery({
-      build: async () => instructions,
-      invoicePda: args.invoicePda,
-      landed: (inv) => inv !== null && inv.status === InvoiceStatus.Paid && inv.payer.equals(wallet.publicKey),
-      write: opts,
-    });
+    try {
+      return await this.writeWithRecovery({
+        build: async () => instructions,
+        invoicePda: args.invoicePda,
+        landed: (inv) => inv !== null && inv.status === InvoiceStatus.Paid && inv.payer.equals(wallet.publicKey),
+        write: opts,
+      });
+    } catch (err) {
+      throw await this.disambiguatePayError(args.invoicePda, err);
+    }
+  }
+
+  /**
+   * The program reports DuplicatePayment for ANY non-Open status, and a pay on a
+   * Closed invoice whose escrow ATA is gone fails with AccountNotInitialized.
+   * Re-read the Invoice account (status source of truth) and return a precise
+   * error when it is Closed or Expired; otherwise return the original error.
+   */
+  private async disambiguatePayError(invoicePda: PublicKey, err: unknown): Promise<unknown> {
+    const mapped = mapError(err);
+    if (mapped.name !== 'DuplicatePayment' && mapped.name !== 'AccountNotInitialized') return err;
+    try {
+      const current = await this.fetchInvoice(invoicePda, 'confirmed');
+      const pdaStr = invoicePda.toBase58();
+      if (current.status === InvoiceStatus.Closed) return new InvoiceClosedError(pdaStr, { cause: err });
+      if (current.status === InvoiceStatus.Expired) return new InvoiceExpiredError(pdaStr, { cause: err });
+    } catch {
+      // Could not re-read: keep the original error.
+    }
+    return err;
   }
 
   async merchantClaim(
