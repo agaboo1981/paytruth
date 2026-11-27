@@ -12,7 +12,15 @@ fn a1_double_pay() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 1, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     let pay = |amount: u64| {
         pay_invoice_ix(
@@ -24,6 +32,7 @@ fn a1_double_pay() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             amount,
+            1000,
         )
     };
 
@@ -41,6 +50,10 @@ fn a1_double_pay() {
     assert_eq!(inv.status, 1);
     assert_eq!(inv.paid_amount, 1000, "paid_amount unchanged");
     assert_eq!(inv.payer, payer.pubkey());
-    assert_eq!(token_balance(&svm, &payer_ata), payer_bal, "payer balance unchanged");
+    assert_eq!(
+        token_balance(&svm, &payer_ata),
+        payer_bal,
+        "payer balance unchanged"
+    );
     assert_eq!(token_balance(&svm, &escrow), escrow_bal, "escrow unchanged");
 }

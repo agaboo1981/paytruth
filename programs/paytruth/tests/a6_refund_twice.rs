@@ -12,7 +12,15 @@ fn a6_refund_twice() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 6, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -26,6 +34,7 @@ fn a6_refund_twice() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1500,
+            1000,
         ),
     );
 
@@ -49,6 +58,10 @@ fn a6_refund_twice() {
     let res = send(&mut svm, &payer, &[&payer], refund());
     assert_custom_error(res, &program_id(), 6006);
     assert_eq!(read_invoice(&svm, &invoice).refunded_excess, 500);
-    assert_eq!(token_balance(&svm, &payer_ata), payer_bal, "no second refund");
+    assert_eq!(
+        token_balance(&svm, &payer_ata),
+        payer_bal,
+        "no second refund"
+    );
     assert_eq!(token_balance(&svm, &escrow), escrow_bal);
 }

@@ -12,14 +12,7 @@ fn a8_expire_before_time() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, _escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        8,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 8, 1000, expiry, [0u8; 64], &mint,
     );
 
     warp_to(&mut svm, expiry - 1);

@@ -13,7 +13,15 @@ fn a5_refund_wrong_destination() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 5, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -27,12 +35,19 @@ fn a5_refund_wrong_destination() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1500,
+            1000,
         ),
     );
 
     // Attacker pretends to be the recorded payer: the `payer` account's address constraint
     // does not match invoice.payer, so InvalidPayerAta (6014) fires before any transfer.
-    let attacker_ata = create_ata(&mut svm, &attacker, &attacker.pubkey(), &mint, &TOKEN_PROGRAM_ID);
+    let attacker_ata = create_ata(
+        &mut svm,
+        &attacker,
+        &attacker.pubkey(),
+        &mint,
+        &TOKEN_PROGRAM_ID,
+    );
     let res = send(
         &mut svm,
         &attacker,

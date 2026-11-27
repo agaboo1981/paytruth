@@ -13,7 +13,15 @@ fn a12a_wrong_merchant_signer_claim() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 12, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -27,10 +35,17 @@ fn a12a_wrong_merchant_signer_claim() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1000,
+            1000,
         ),
     );
 
-    let attacker_ata = create_ata(&mut svm, &attacker, &attacker.pubkey(), &mint, &TOKEN_PROGRAM_ID);
+    let attacker_ata = create_ata(
+        &mut svm,
+        &attacker,
+        &attacker.pubkey(),
+        &mint,
+        &TOKEN_PROGRAM_ID,
+    );
     let res = send(
         &mut svm,
         &attacker,
@@ -60,14 +75,7 @@ fn a12a_wrong_merchant_signer_close() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        12,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 12, 1000, expiry, [0u8; 64], &mint,
     );
     warp_to(&mut svm, expiry);
     expect_ok(
@@ -81,7 +89,13 @@ fn a12a_wrong_merchant_signer_close() {
         &mut svm,
         &attacker,
         &[&attacker],
-        close_invoice_ix(&attacker.pubkey(), &invoice, &mint, &escrow, &TOKEN_PROGRAM_ID),
+        close_invoice_ix(
+            &attacker.pubkey(),
+            &invoice,
+            &mint,
+            &escrow,
+            &TOKEN_PROGRAM_ID,
+        ),
     );
     assert_custom_error(res, &program_id(), 6013);
     assert!(account_exists(&svm, &invoice));
@@ -99,16 +113,17 @@ fn a12a_wrong_merchant_signer_recover() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        12,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 12, 1000, expiry, [0u8; 64], &mint,
     );
-    mint_to(&mut svm, &authority, &mint, &mint_auth, &escrow, 500, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &authority,
+        &mint,
+        &mint_auth,
+        &escrow,
+        500,
+        &TOKEN_PROGRAM_ID,
+    );
     warp_to(&mut svm, expiry);
     expect_ok(
         &mut svm,
@@ -117,7 +132,13 @@ fn a12a_wrong_merchant_signer_recover() {
         expire_invoice_ix(&caller.pubkey(), &invoice),
     );
 
-    let attacker_ata = create_ata(&mut svm, &attacker, &attacker.pubkey(), &mint, &TOKEN_PROGRAM_ID);
+    let attacker_ata = create_ata(
+        &mut svm,
+        &attacker,
+        &attacker.pubkey(),
+        &mint,
+        &TOKEN_PROGRAM_ID,
+    );
     let res = send(
         &mut svm,
         &attacker,

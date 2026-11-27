@@ -12,14 +12,7 @@ fn h8_expire_at_expires_at() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, _escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        80,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 80, 1000, expiry, [0u8; 64], &mint,
     );
 
     // Before expiry: expire fails NotExpired.

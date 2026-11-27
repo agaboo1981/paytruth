@@ -13,17 +13,18 @@ fn a21_direct_transfer_then_recover() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        21,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 21, 1000, expiry, [0u8; 64], &mint,
     );
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     // Direct SPL transfer into the escrow — NOT pay_invoice.
     raw_transfer(
@@ -67,5 +68,9 @@ fn a21_direct_transfer_then_recover() {
     );
     assert_eq!(token_balance(&svm, &escrow), 0);
     assert_eq!(token_balance(&svm, &merchant_ata), 700);
-    assert_eq!(read_invoice(&svm, &invoice).status, 2, "recover does not change status");
+    assert_eq!(
+        read_invoice(&svm, &invoice).status,
+        2,
+        "recover does not change status"
+    );
 }

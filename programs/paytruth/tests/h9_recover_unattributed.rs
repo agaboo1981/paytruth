@@ -12,18 +12,19 @@ fn h9_recover_unattributed_expired_stray_funds() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        90,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 90, 1000, expiry, [0u8; 64], &mint,
     );
 
     // Stray tokens land in the vault via a raw mint (simulating a direct transfer).
-    mint_to(&mut svm, &authority, &mint, &mint_auth, &escrow, 777, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &authority,
+        &mint,
+        &mint_auth,
+        &escrow,
+        777,
+        &TOKEN_PROGRAM_ID,
+    );
     assert_eq!(token_balance(&svm, &escrow), 777);
 
     warp_to(&mut svm, expiry);
@@ -52,5 +53,9 @@ fn h9_recover_unattributed_expired_stray_funds() {
 
     assert_eq!(token_balance(&svm, &escrow), 0, "vault drained");
     assert_eq!(token_balance(&svm, &merchant_ata), 777);
-    assert_eq!(read_invoice(&svm, &invoice).status, 2, "status unchanged by recover");
+    assert_eq!(
+        read_invoice(&svm, &invoice).status,
+        2,
+        "status unchanged by recover"
+    );
 }

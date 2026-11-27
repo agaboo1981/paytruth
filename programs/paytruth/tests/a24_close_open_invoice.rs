@@ -15,7 +15,13 @@ fn a24_close_open_invoice() {
         &mut svm,
         &merchant,
         &[&merchant],
-        close_invoice_ix(&merchant.pubkey(), &invoice, &mint, &escrow, &TOKEN_PROGRAM_ID),
+        close_invoice_ix(
+            &merchant.pubkey(),
+            &invoice,
+            &mint,
+            &escrow,
+            &TOKEN_PROGRAM_ID,
+        ),
     );
     assert_custom_error(res, &program_id(), 6017);
     assert!(account_exists(&svm, &invoice), "open invoice cannot close");

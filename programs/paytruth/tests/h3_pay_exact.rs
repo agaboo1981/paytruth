@@ -12,7 +12,15 @@ fn h3_pay_exact() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 1, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     expect_ok(
         &mut svm,
@@ -27,6 +35,7 @@ fn h3_pay_exact() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1000,
+            1000,
         ),
     );
 
@@ -37,5 +46,9 @@ fn h3_pay_exact() {
     assert_eq!(inv.payer, payer.pubkey());
     assert_eq!(inv.paid_amount - inv.amount_due, 0, "excess must be 0");
     assert_eq!(token_balance(&svm, &escrow), 1000);
-    assert_eq!(token_balance(&svm, &payer_ata), 4_000, "payer debited exactly");
+    assert_eq!(
+        token_balance(&svm, &payer_ata),
+        4_000,
+        "payer debited exactly"
+    );
 }

@@ -12,7 +12,15 @@ fn a15_underpayment() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 15, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     let res = send(
         &mut svm,
@@ -27,6 +35,7 @@ fn a15_underpayment() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             999,
+            1000,
         ),
     );
     assert_custom_error(res, &program_id(), 6000);

@@ -10,7 +10,10 @@ fn a14_initialize_config_with_token2022_mint() {
     // A valid 6-decimal Token-2022 mint: initialize_config must reject it as InvalidMint.
     let (mint_2022, _auth) = create_mint(&mut svm, &authority, MintKind::Token2022, USDC_DECIMALS);
     let acc = svm.get_account(&mint_2022).unwrap();
-    assert_eq!(acc.owner, TOKEN_2022_PROGRAM_ID, "mint is owned by Token-2022");
+    assert_eq!(
+        acc.owner, TOKEN_2022_PROGRAM_ID,
+        "mint is owned by Token-2022"
+    );
 
     let (config, _) = config_pda();
     let res = send(
@@ -33,7 +36,15 @@ fn a14_pay_with_token2022_program() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 14, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     // Passing the Token-2022 program id where the classic Token program is required makes
     // Anchor's `Program<'info, Token>` check fail with InvalidProgramId (3008).
@@ -45,6 +56,7 @@ fn a14_pay_with_token2022_program() {
         &payer_ata,
         &escrow,
         &TOKEN_2022_PROGRAM_ID,
+        1000,
         1000,
     );
     let res = send(&mut svm, &payer, &[&payer], ix);

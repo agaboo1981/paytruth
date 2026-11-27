@@ -27,13 +27,23 @@ pub struct PayInvoice<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-pub fn handle_pay_invoice(ctx: Context<PayInvoice>, amount: u64) -> Result<()> {
+pub fn handle_pay_invoice(
+    ctx: Context<PayInvoice>,
+    amount: u64,
+    expected_amount_due: u64,
+) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let invoice = &ctx.accounts.invoice;
 
     require!(
         InvoiceStatus::from_u8(invoice.status) == Some(InvoiceStatus::Open),
         PaytruthError::DuplicatePayment
+    );
+    // QA M2: a signed pay tx is bound to the invoice terms the payer saw. A stale or
+    // substituted invoice (different amount_due) is rejected before any transfer.
+    require!(
+        expected_amount_due == invoice.amount_due,
+        PaytruthError::InvoiceMismatch
     );
     require!(now < invoice.expires_at, PaytruthError::InvoiceExpired);
     require!(amount > 0, PaytruthError::InvalidAmount);

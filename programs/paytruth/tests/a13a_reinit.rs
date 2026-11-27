@@ -33,10 +33,7 @@ fn a13a_reinit_while_invoice_exists() {
         },
     );
     let res = send(&mut svm, &merchant, &[&merchant], ix);
-    assert_instruction_error(
-        res,
-        InstructionError::Custom(0),
-    );
+    assert_instruction_error(res, InstructionError::Custom(0));
 
     // State pristine.
     let after = read_invoice(&svm, &invoice);

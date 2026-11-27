@@ -12,10 +12,19 @@ fn a10_pay_wrong_mint() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 10, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     // A different, valid classic 6-dec mint. Passing it as `mint` must fail InvalidMint (6011).
-    let (other_mint, _other_auth) = create_mint(&mut svm, &authority, MintKind::Classic, USDC_DECIMALS);
+    let (other_mint, _other_auth) =
+        create_mint(&mut svm, &authority, MintKind::Classic, USDC_DECIMALS);
     assert_ne!(other_mint, mint);
 
     let res = send(
@@ -30,6 +39,7 @@ fn a10_pay_wrong_mint() {
             &payer_ata,
             &escrow,
             &TOKEN_PROGRAM_ID,
+            1000,
             1000,
         ),
     );

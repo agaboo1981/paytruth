@@ -46,4 +46,6 @@ pub enum PaytruthError {
     PayerNotRecorded,
     #[msg("Mint does not match config usdc mint")]
     ConfigMintMismatch,
+    #[msg("Invoice does not match the expected amount due (stale or substituted invoice)")]
+    InvoiceMismatch,
 }

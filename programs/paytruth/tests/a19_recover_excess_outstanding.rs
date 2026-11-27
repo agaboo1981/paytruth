@@ -12,7 +12,15 @@ fn a19_recover_while_excess_outstanding() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 19, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     // Overpay.
     expect_ok(
         &mut svm,
@@ -27,6 +35,7 @@ fn a19_recover_while_excess_outstanding() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1600,
+            1000,
         ),
     );
     // Claim (caps at due); excess 600 stays outstanding in vault.

@@ -28,7 +28,7 @@ pub struct RecoverUnattributed<'info> {
         mut,
         constraint = escrow.key() == anchor_spl::associated_token::get_associated_token_address(
             &invoice.key(),
-            &mint.key(),
+            &invoice.mint,
         ) @ PaytruthError::InvalidEscrow,
         constraint = escrow.owner == invoice.key() @ PaytruthError::InvalidEscrow,
     )]
@@ -50,7 +50,9 @@ pub fn handle_recover_unattributed(ctx: Context<RecoverUnattributed>) -> Result<
     let invoice = &ctx.accounts.invoice;
 
     match InvoiceStatus::from_u8(invoice.status) {
-        Some(InvoiceStatus::Expired) => {}
+        // Closed is terminal with excess already cleared; allows recovering tokens sent to an
+        // escrow ATA that a third party re-created after close.
+        Some(InvoiceStatus::Expired) | Some(InvoiceStatus::Closed) => {}
         Some(InvoiceStatus::Paid) if invoice.claimed => {
             let excess = invoice
                 .paid_amount

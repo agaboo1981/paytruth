@@ -10,7 +10,7 @@
 - Chosen over `solana-test-validator` + ts-mocha because the plan needs exact clock warping to `expires_at` boundaries (LiteSVM `set_sysvar::<Clock>`); the validator cannot set `unix_timestamp`.
 - LiteSVM loads the real SBF binary `target/deploy/paytruth.so` plus the real SPL Token, Token-2022 and ATA programs, so CPIs are real.
 - Run: `anchor build && cargo test -p paytruth` (or `anchor test`, whose script is `cargo test`, with `skip_local_validator = true`).
-- Deviation from TEST-PLAN "ts-mocha": test layer is Rust, path is `programs/paytruth/tests/` rather than `tests/program/` (cargo integration tests must live in the crate). Same IDs H1-H11, A1-A25.
+- Deviation from TEST-PLAN "ts-mocha": test layer is Rust, path is `programs/paytruth/tests/` rather than `tests/program/` (cargo integration tests must live in the crate). Same IDs H1-H11, A1-A25, plus QA regressions (A13c, M2, A26-A28, X8, X9, X11).
 
 ## Spec interpretation decisions
 1. `InvoiceStatus` is stored as `status: u8` exactly per spec; the Rust enum is a helper only (not in the IDL), because Anchor IDL build rejects explicit enum discriminants.
@@ -19,5 +19,12 @@
 4. `refund_overpayment`: adds an extra read-only account `payer` with `address = invoice.payer @ InvalidPayerAta`, used as the ATA authority of `payer_ata` (init_if_needed). This is how "dest ATA not owned by recorded payer" maps to `InvalidPayerAta`. A non-ATA account for the right payer fails with Anchor's associated-token constraint error instead.
 5. `recover_unattributed`: spec signature shows `recover_unattributed(destination_ata)`; implemented with no instruction args and `destination_ata` as an account (init_if_needed, authority = merchant). A destination for a different authority fails with Anchor's associated-token constraint, not `InvalidPayerAta`.
 6. claim/refund/recover/close escrow checks use `constraint ... @ InvalidEscrow` (key == ATA(invoice, mint) and token owner == invoice) rather than `associated_token::` constraints, so the spec error code is returned.
-7. Escrow at `create_invoice` uses `init` (not `init_if_needed`), as the spec limits `init_if_needed` to recipient ATAs. See SECURITY.md F1 for the resulting griefing risk.
+7. (Superseded by Lead/QA S3) Escrow at `create_invoice` uses `init_if_needed` with `associated_token::mint = mint, authority = invoice, token_program`, so a pre-created canonical escrow ATA cannot block an invoice_id. The Invoice account still uses plain `init`; any tokens pre-seeded into the escrow are unattributed and only recoverable by the merchant after a terminal state.
 8. `PayerNotRecorded` is unreachable in practice (status Paid implies payer set); kept as a defensive check.
+
+## Changes from the Team Lead / QA review (qa/paytruth-spec-review.md), 2026-11-27
+9. **Invoice size = 219 bytes** (InitSpace 211). The spec's `96 + 40 + 3 + 64 = 203` miscounted the six 8-byte fields (48, not 40). Code uses `8 + Invoice::INIT_SPACE` = 219; docs/PROGRAM-SPEC.md, ARCHITECTURE.md and TEST-PLAN H2 corrected on this branch.
+10. **M2 — `pay_invoice(amount, expected_amount_due)`**: new arg; checked right after the Open check, mismatch → new error `InvoiceMismatch` (6022, appended so 6000-6021 are unchanged). Binds a signed pay tx to the terms the payer saw. Mint is still checked (`mint == invoice.mint` → InvalidMint, `invoice.mint == config.usdc_mint` → ConfigMintMismatch).
+11. **No invoice_id reuse — tombstone on close.** `close_invoice` closes the escrow ATA (its rent goes to the merchant) but keeps the Invoice account and sets `status = Closed (3)`. Because create uses `init`, the same `(merchant, invoice_id)` can never be created again. Cost: the Invoice rent (~0.0024 SOL at 219 bytes) stays locked; the verify page keeps the history. Deviation from spec "close Invoice to merchant / rent returns" and from STATE-MACHINE's "recreate after close" note (A13b now asserts rejection).
+12. Every instruction treats Closed as non-actionable (pay → DuplicatePayment, expire → InvoiceNotOpen, claim/refund → InvoiceNotPaid, close → InvoiceNotTerminal). `recover_unattributed` also accepts Closed, to recover tokens someone sends to a re-created escrow ATA after close.
+13. **S2/M1**: claim/refund/recover/close derive the expected escrow from `invoice.mint` (not the passed mint), require `mint == invoice.mint`, token owner == invoice PDA, and classic `Program<Token>`. Regression tests X8/X9/X11.

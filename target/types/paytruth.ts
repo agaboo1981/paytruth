@@ -559,6 +559,10 @@ export type Paytruth = {
         {
           "name": "amount",
           "type": "u64"
+        },
+        {
+          "name": "expectedAmountDue",
+          "type": "u64"
         }
       ]
     },
@@ -1057,6 +1061,11 @@ export type Paytruth = {
       "code": 6021,
       "name": "configMintMismatch",
       "msg": "Mint does not match config usdc mint"
+    },
+    {
+      "code": 6022,
+      "name": "invoiceMismatch",
+      "msg": "Invoice does not match the expected amount due (stale or substituted invoice)"
     }
   ],
   "types": [

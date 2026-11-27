@@ -11,7 +11,15 @@ fn a18_recover_before_terminal() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 18, 1000, &mint);
     // Some stray funds so the vault is non-empty (so the failure is terminal, not NothingToRecover).
-    mint_to(&mut svm, &authority, &mint, &mint_auth, &escrow, 500, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &authority,
+        &mint,
+        &mint_auth,
+        &escrow,
+        500,
+        &TOKEN_PROGRAM_ID,
+    );
 
     let merchant_ata = ata_for(&merchant.pubkey(), &mint);
     let res = send(

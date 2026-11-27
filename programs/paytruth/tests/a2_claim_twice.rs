@@ -12,7 +12,15 @@ fn a2_claim_twice() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 2, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -25,6 +33,7 @@ fn a2_claim_twice() {
             &payer_ata,
             &escrow,
             &TOKEN_PROGRAM_ID,
+            1000,
             1000,
         ),
     );
@@ -52,6 +61,10 @@ fn a2_claim_twice() {
     );
     let res = send(&mut svm, &merchant, &[&merchant], claim2);
     assert_custom_error(res, &program_id(), 6005);
-    assert_eq!(token_balance(&svm, &merchant_ata), mid_merchant, "merchant balance unchanged");
+    assert_eq!(
+        token_balance(&svm, &merchant_ata),
+        mid_merchant,
+        "merchant balance unchanged"
+    );
     assert_eq!(token_balance(&svm, &escrow), mid_escrow, "escrow unchanged");
 }

@@ -12,17 +12,18 @@ fn a20_close_with_nonempty_vault() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        20,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 20, 1000, expiry, [0u8; 64], &mint,
     );
     // Direct stray funds into the vault.
-    mint_to(&mut svm, &authority, &mint, &mint_auth, &escrow, 400, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &authority,
+        &mint,
+        &mint_auth,
+        &escrow,
+        400,
+        &TOKEN_PROGRAM_ID,
+    );
     warp_to(&mut svm, expiry);
     expect_ok(
         &mut svm,
@@ -35,7 +36,13 @@ fn a20_close_with_nonempty_vault() {
         &mut svm,
         &merchant,
         &[&merchant],
-        close_invoice_ix(&merchant.pubkey(), &invoice, &mint, &escrow, &TOKEN_PROGRAM_ID),
+        close_invoice_ix(
+            &merchant.pubkey(),
+            &invoice,
+            &mint,
+            &escrow,
+            &TOKEN_PROGRAM_ID,
+        ),
     );
     assert_custom_error(res, &program_id(), 6016);
     assert!(account_exists(&svm, &invoice), "still open");

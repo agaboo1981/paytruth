@@ -32,8 +32,12 @@ pub mod paytruth {
         )
     }
 
-    pub fn pay_invoice(ctx: Context<PayInvoice>, amount: u64) -> Result<()> {
-        crate::instructions::pay_invoice::handle_pay_invoice(ctx, amount)
+    pub fn pay_invoice(
+        ctx: Context<PayInvoice>,
+        amount: u64,
+        expected_amount_due: u64,
+    ) -> Result<()> {
+        crate::instructions::pay_invoice::handle_pay_invoice(ctx, amount, expected_amount_due)
     }
 
     pub fn merchant_claim(ctx: Context<MerchantClaim>) -> Result<()> {

@@ -12,7 +12,15 @@ fn h5_merchant_claim() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 5, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -26,6 +34,7 @@ fn h5_merchant_claim() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1500,
+            1000,
         ),
     );
 
@@ -46,6 +55,10 @@ fn h5_merchant_claim() {
 
     let inv = read_invoice(&svm, &invoice);
     assert!(inv.claimed);
-    assert_eq!(token_balance(&svm, &merchant_ata), 1000, "merchant received exactly amount_due");
+    assert_eq!(
+        token_balance(&svm, &merchant_ata),
+        1000,
+        "merchant received exactly amount_due"
+    );
     assert_eq!(token_balance(&svm, &escrow), 500, "vault holds only excess");
 }

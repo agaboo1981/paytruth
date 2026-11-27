@@ -17,14 +17,7 @@ fn h2_create_invoice() {
     memo[..text.len()].copy_from_slice(text);
 
     let (invoice, escrow, expected_bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        invoice_id,
-        amount_due,
-        expiry,
-        memo,
-        &mint,
+        &mut svm, &merchant, &config, invoice_id, amount_due, expiry, memo, &mint,
     );
 
     // SPEC-NOTE: spec text says 211; the documented six 8-byte numerals give 219.
@@ -44,7 +37,10 @@ fn h2_create_invoice() {
     assert!(!inv.claimed);
     assert_eq!(inv.bump, expected_bump);
     assert_eq!(&inv.memo[..text.len()], text);
-    assert!(inv.memo[text.len()..].iter().all(|b| *b == 0), "memo must be zero-padded");
+    assert!(
+        inv.memo[text.len()..].iter().all(|b| *b == 0),
+        "memo must be zero-padded"
+    );
 
     // Escrow ATA exists, owned by invoice, holds the right mint.
     assert!(account_exists(&svm, &escrow));

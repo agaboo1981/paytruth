@@ -28,7 +28,7 @@ pub struct MerchantClaim<'info> {
         mut,
         constraint = escrow.key() == anchor_spl::associated_token::get_associated_token_address(
             &invoice.key(),
-            &mint.key(),
+            &invoice.mint,
         ) @ PaytruthError::InvalidEscrow,
         constraint = escrow.owner == invoice.key() @ PaytruthError::InvalidEscrow,
     )]

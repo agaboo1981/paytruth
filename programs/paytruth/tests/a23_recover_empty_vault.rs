@@ -12,14 +12,7 @@ fn a23_recover_empty_vault() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        23,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 23, 1000, expiry, [0u8; 64], &mint,
     );
     warp_to(&mut svm, expiry);
     expect_ok(

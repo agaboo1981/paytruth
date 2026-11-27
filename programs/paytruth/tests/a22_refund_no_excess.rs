@@ -12,7 +12,15 @@ fn a22_refund_when_no_excess() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 22, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     // Pay exactly (no excess).
     expect_ok(
         &mut svm,
@@ -26,6 +34,7 @@ fn a22_refund_when_no_excess() {
             &payer_ata,
             &escrow,
             &TOKEN_PROGRAM_ID,
+            1000,
             1000,
         ),
     );

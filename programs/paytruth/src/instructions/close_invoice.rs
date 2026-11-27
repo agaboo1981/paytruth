@@ -17,7 +17,6 @@ pub struct CloseInvoice<'info> {
         seeds = [INVOICE_SEED, invoice.merchant.as_ref(), invoice.invoice_id.to_le_bytes().as_ref()],
         bump = invoice.bump,
         has_one = merchant @ PaytruthError::UnauthorizedMerchant,
-        close = merchant,
     )]
     pub invoice: Account<'info, Invoice>,
     #[account(constraint = mint.key() == invoice.mint @ PaytruthError::InvalidMint)]
@@ -26,7 +25,7 @@ pub struct CloseInvoice<'info> {
         mut,
         constraint = escrow.key() == anchor_spl::associated_token::get_associated_token_address(
             &invoice.key(),
-            &mint.key(),
+            &invoice.mint,
         ) @ PaytruthError::InvalidEscrow,
         constraint = escrow.owner == invoice.key() @ PaytruthError::InvalidEscrow,
     )]
@@ -73,6 +72,11 @@ pub fn handle_close_invoice(ctx: Context<CloseInvoice>) -> Result<()> {
         signer_seeds,
     );
     token::close_account(cpi_ctx)?;
+
+    // Tombstone (Team Lead rule: never allow invoice_id reuse). The Invoice account is kept
+    // with status = Closed, so `create_invoice` with the same id fails on `init` forever.
+    let invoice = &mut ctx.accounts.invoice;
+    invoice.status = InvoiceStatus::Closed as u8;
 
     emit!(InvoiceClosed {
         invoice: invoice.key(),

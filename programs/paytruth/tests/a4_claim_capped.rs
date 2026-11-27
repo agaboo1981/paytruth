@@ -12,7 +12,15 @@ fn a4_claim_capped_at_amount_due() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 4, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     // Overpay to 1800 (excess 800).
     expect_ok(
@@ -28,6 +36,7 @@ fn a4_claim_capped_at_amount_due() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1800,
+            1000,
         ),
     );
     assert_eq!(token_balance(&svm, &escrow), 1800);

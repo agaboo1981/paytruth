@@ -12,17 +12,18 @@ fn a7_pay_after_expiry() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        7,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 7, 1000, expiry, [0u8; 64], &mint,
     );
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     // Boundary: at exactly expires_at pay is rejected (InvoiceExpired 6003).
     warp_to(&mut svm, expiry);
@@ -38,6 +39,7 @@ fn a7_pay_after_expiry() {
             &payer_ata,
             &escrow,
             &TOKEN_PROGRAM_ID,
+            1000,
             1000,
         ),
     );
@@ -60,17 +62,18 @@ fn a7b_pay_at_expires_at_minus_one_succeeds() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        7,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 7, 1000, expiry, [0u8; 64], &mint,
     );
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
 
     warp_to(&mut svm, expiry - 1);
     expect_ok(
@@ -85,6 +88,7 @@ fn a7b_pay_at_expires_at_minus_one_succeeds() {
             &payer_ata,
             &escrow,
             &TOKEN_PROGRAM_ID,
+            1000,
             1000,
         ),
     );

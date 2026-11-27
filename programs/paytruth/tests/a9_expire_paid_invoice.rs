@@ -13,17 +13,18 @@ fn a9_expire_paid_invoice() {
 
     let expiry = now(&svm) + 1_000;
     let (invoice, escrow, _bump) = do_create_invoice(
-        &mut svm,
-        &merchant,
-        &config,
-        9,
-        1000,
-        expiry,
-        [0u8; 64],
-        &mint,
+        &mut svm, &merchant, &config, 9, 1000, expiry, [0u8; 64], &mint,
     );
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -36,6 +37,7 @@ fn a9_expire_paid_invoice() {
             &payer_ata,
             &escrow,
             &TOKEN_PROGRAM_ID,
+            1000,
             1000,
         ),
     );
@@ -50,5 +52,9 @@ fn a9_expire_paid_invoice() {
         expire_invoice_ix(&caller.pubkey(), &invoice),
     );
     assert_custom_error(res, &program_id(), 6002);
-    assert_eq!(read_invoice(&svm, &invoice).status, 1, "Paid invoices cannot expire");
+    assert_eq!(
+        read_invoice(&svm, &invoice).status,
+        1,
+        "Paid invoices cannot expire"
+    );
 }

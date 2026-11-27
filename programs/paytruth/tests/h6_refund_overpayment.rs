@@ -13,7 +13,15 @@ fn h6_refund_overpayment() {
 
     let (invoice, escrow) = open_invoice(&mut svm, &merchant, &config, 6, 1000, &mint);
     let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint, &TOKEN_PROGRAM_ID);
-    mint_to(&mut svm, &payer, &mint, &mint_auth, &payer_ata, 5_000, &TOKEN_PROGRAM_ID);
+    mint_to(
+        &mut svm,
+        &payer,
+        &mint,
+        &mint_auth,
+        &payer_ata,
+        5_000,
+        &TOKEN_PROGRAM_ID,
+    );
     expect_ok(
         &mut svm,
         &payer,
@@ -27,6 +35,7 @@ fn h6_refund_overpayment() {
             &escrow,
             &TOKEN_PROGRAM_ID,
             1500,
+            1000,
         ),
     );
 
@@ -48,6 +57,14 @@ fn h6_refund_overpayment() {
 
     let inv = read_invoice(&svm, &invoice);
     assert_eq!(inv.refunded_excess, 500);
-    assert_eq!(token_balance(&svm, &payer_ata), 4_000, "payer got excess back");
-    assert_eq!(token_balance(&svm, &escrow), 1000, "vault now holds exactly amount_due");
+    assert_eq!(
+        token_balance(&svm, &payer_ata),
+        4_000,
+        "payer got excess back"
+    );
+    assert_eq!(
+        token_balance(&svm, &escrow),
+        1000,
+        "vault now holds exactly amount_due"
+    );
 }

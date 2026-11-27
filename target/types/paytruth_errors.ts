@@ -21,7 +21,8 @@ export const PaytruthErrorCode = {
   ExcessOutstanding: 6018,
   NothingToRecover: 6019,
   PayerNotRecorded: 6020,
-  ConfigMintMismatch: 6021
+  ConfigMintMismatch: 6021,
+  InvoiceMismatch: 6022
 };
 
 export type PaytruthErrorName = keyof typeof PaytruthErrorCode;

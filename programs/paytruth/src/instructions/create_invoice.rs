@@ -27,8 +27,11 @@ pub struct CreateInvoice<'info> {
     pub invoice: Account<'info, Invoice>,
     #[account(constraint = mint.key() == config.usdc_mint @ PaytruthError::ConfigMintMismatch)]
     pub mint: Account<'info, Mint>,
+    // init_if_needed ONLY here (QA S3): a pre-created canonical escrow ATA must not block
+    // an invoice_id. Mint/authority/token-program are still enforced by the constraints.
+    // The Invoice account above always uses plain `init`.
     #[account(
-        init,
+        init_if_needed,
         payer = merchant,
         associated_token::mint = mint,
         associated_token::authority = invoice,

@@ -229,7 +229,9 @@ pub fn mint_to(
 }
 
 pub fn token_balance(svm: &LiteSVM, account: &Pubkey) -> u64 {
-    read_token_account(svm, account).map(|a| a.amount).unwrap_or(0)
+    read_token_account(svm, account)
+        .map(|a| a.amount)
+        .unwrap_or(0)
 }
 
 /// Plain SPL `Transfer` (no program involvement) authority-signed by `authority`.
@@ -281,7 +283,9 @@ pub fn read_config(svm: &LiteSVM, config: &Pubkey) -> Config {
 }
 
 pub fn read_invoice(svm: &LiteSVM, invoice: &Pubkey) -> Invoice {
-    let acc = svm.get_account(invoice).expect("invoice account must exist");
+    let acc = svm
+        .get_account(invoice)
+        .expect("invoice account must exist");
     Invoice::try_deserialize(&mut acc.data.as_slice()).expect("invoice deserializes")
 }
 
@@ -399,9 +403,11 @@ pub fn pay_invoice_ix(
     escrow: &Pubkey,
     token_program: &Pubkey,
     amount: u64,
+    expected_amount_due: u64,
 ) -> Instruction {
     let mut data = paytruth::instruction::PayInvoice::DISCRIMINATOR.to_vec();
     data.extend_from_slice(&amount.to_le_bytes());
+    data.extend_from_slice(&expected_amount_due.to_le_bytes());
     Instruction {
         program_id: program_id(),
         accounts: vec![
@@ -545,14 +551,12 @@ pub fn send(
     }
 }
 
-pub fn expect_ok(
-    svm: &mut LiteSVM,
-    payer: &Keypair,
-    signers: &[&Keypair],
-    ix: Instruction,
-) {
+pub fn expect_ok(svm: &mut LiteSVM, payer: &Keypair, signers: &[&Keypair], ix: Instruction) {
     if let Err((err, logs)) = send(svm, payer, signers, ix) {
-        panic!("expected success but got {err:?}\nlogs:\n{}", logs.join("\n"));
+        panic!(
+            "expected success but got {err:?}\nlogs:\n{}",
+            logs.join("\n")
+        );
     }
 }
 
@@ -611,7 +615,10 @@ pub fn assert_instruction_error(
             TransactionError::InstructionError(_, actual) => {
                 assert_eq!(actual, expected, "logs:\n{}", logs.join("\n"));
             }
-            other => panic!("expected InstructionError, got {other:?}\nlogs:\n{}", logs.join("\n")),
+            other => panic!(
+                "expected InstructionError, got {other:?}\nlogs:\n{}",
+                logs.join("\n")
+            ),
         },
     }
 }
@@ -674,8 +681,9 @@ pub fn open_invoice(
     mint: &Pubkey,
 ) -> (Pubkey, Pubkey) {
     let expiry = now(svm) + 100_000;
-    let (invoice, escrow, _) =
-        do_create_invoice(svm, merchant, config, invoice_id, amount_due, expiry, [0u8; 64], mint);
+    let (invoice, escrow, _) = do_create_invoice(
+        svm, merchant, config, invoice_id, amount_due, expiry, [0u8; 64], mint,
+    );
     (invoice, escrow)
 }
 

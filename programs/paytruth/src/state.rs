@@ -9,6 +9,8 @@ pub enum InvoiceStatus {
     Open = 0,
     Paid = 1,
     Expired = 2,
+    /// Tombstone: escrow closed, Invoice account kept so the invoice_id can never be reused.
+    Closed = 3,
 }
 
 impl InvoiceStatus {
@@ -17,6 +19,7 @@ impl InvoiceStatus {
             0 => Some(Self::Open),
             1 => Some(Self::Paid),
             2 => Some(Self::Expired),
+            3 => Some(Self::Closed),
             _ => None,
         }
     }
@@ -87,10 +90,7 @@ mod tests {
     #[test]
     fn invoice_field_geometry() {
         assert_eq!(
-            core::mem::size_of::<Pubkey>() * 3
-                + 8 * 6
-                + 1 * 3
-                + MEMO_LEN,
+            core::mem::size_of::<Pubkey>() * 3 + 8 * 6 + 1 * 3 + MEMO_LEN,
             Invoice::INIT_SPACE
         );
     }
@@ -100,6 +100,7 @@ mod tests {
         assert_eq!(InvoiceStatus::from_u8(0), Some(InvoiceStatus::Open));
         assert_eq!(InvoiceStatus::from_u8(1), Some(InvoiceStatus::Paid));
         assert_eq!(InvoiceStatus::from_u8(2), Some(InvoiceStatus::Expired));
-        assert_eq!(InvoiceStatus::from_u8(3), None);
+        assert_eq!(InvoiceStatus::from_u8(3), Some(InvoiceStatus::Closed));
+        assert_eq!(InvoiceStatus::from_u8(4), None);
     }
 }
