@@ -32,6 +32,7 @@ const ERROR_NUMBERS: Record<string, number> = {
   NothingToRecover: 6019,
   PayerNotRecorded: 6020,
   ConfigMintMismatch: 6021,
+  InvoiceMismatch: 6022,
 };
 
 export type ErrorExpectation = string | RegExp | Array<string | RegExp>;
@@ -339,9 +340,10 @@ async function fetchNullableAccount(
 }
 
 function isMissingAccountError(error: any): boolean {
+  const name = String(error?.name ?? error?.constructor?.name ?? "");
   const text = String(error?.message ?? error ?? "");
-  return /does not exist|not initialized|AccountNotInitialized|AccountDoesNotExist/i.test(
-    text
+  return /TokenAccountNotFound|TokenInvalidAccountOwner|does not exist|not initialized|AccountNotInitialized|AccountDoesNotExist|could not find account/i.test(
+    `${name} ${text}`
   );
 }
 
@@ -529,6 +531,22 @@ export async function assertInvoiceGone(
     await fetchInvoiceNullable(ctx, invoice),
     "invoice account should be closed"
   ).to.equal(null);
+}
+
+/** PR2 tombstone: close_invoice keeps the Invoice account with status = Closed (3). */
+export async function assertInvoiceTombstoned(
+  ctx: TestContext,
+  invoice: PublicKey
+): Promise<any> {
+  const account = await fetchInvoice(ctx, invoice);
+  const status = account?.status;
+  const closed =
+    status === 3 ||
+    status === "Closed" ||
+    status === "closed" ||
+    (status && typeof status === "object" && "closed" in status);
+  expect(closed, "invoice should remain as a Closed tombstone").to.equal(true);
+  return account;
 }
 
 export async function tokenAmount(
@@ -777,6 +795,8 @@ export interface PayOptions {
   mint?: PublicKey;
   escrow?: PublicKey;
   tokenProgram?: PublicKey;
+  /** Bound to invoice.amountDue unless testing InvoiceMismatch. */
+  expectedAmountDue?: BN;
 }
 
 export function payTx(
@@ -786,14 +806,24 @@ export function payTx(
   options: PayOptions = {}
 ): any {
   const payer = options.payer ?? ctx.wallets.payer;
+  const expectedAmountDue = options.expectedAmountDue ?? invoice.amountDue;
+  const payerAta =
+    options.payerAta ??
+    (payer.publicKey.equals(ctx.wallets.payer.publicKey)
+      ? ctx.atas.payer
+      : payer.publicKey.equals(ctx.wallets.attacker.publicKey)
+        ? ctx.atas.attacker
+        : payer.publicKey.equals(ctx.wallets.merchant.publicKey)
+          ? ctx.atas.merchant
+          : ctx.atas.payer);
   return (ctx.program.methods as any)
-    .payInvoice(bn(amount))
+    .payInvoice(bn(amount), bn(expectedAmountDue))
     .accountsPartial({
       payer: payer.publicKey,
       config: ctx.configPda,
       invoice: invoice.pda,
       mint: options.mint ?? invoice.mint,
-      payerAta: options.payerAta ?? ctx.atas.payer,
+      payerAta,
       escrow: options.escrow ?? invoice.escrow,
       tokenProgram: options.tokenProgram ?? ctx.tokenProgram,
     })
@@ -832,6 +862,8 @@ export function claimTx(
 export interface RefundOptions {
   caller?: Keypair;
   payerAta?: PublicKey;
+  /** Recorded invoice.payer pubkey (required account on current program). */
+  recordedPayer?: PublicKey;
   mint?: PublicKey;
   escrow?: PublicKey;
   tokenProgram?: PublicKey;
@@ -850,6 +882,7 @@ export function refundTx(
       invoice: invoice.pda,
       mint: options.mint ?? invoice.mint,
       escrow: options.escrow ?? invoice.escrow,
+      payer: options.recordedPayer ?? ctx.wallets.payer.publicKey,
       payerAta: options.payerAta ?? ctx.atas.payer,
       tokenProgram: options.tokenProgram ?? ctx.tokenProgram,
       associatedTokenProgram: ctx.associatedTokenProgram,

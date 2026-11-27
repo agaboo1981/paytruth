@@ -11,6 +11,7 @@ import {
   assertBalancesUnchanged,
   assertInvoiceExists,
   assertInvoiceGone,
+  assertInvoiceTombstoned,
   assertInvoiceUnchanged,
   claimTx,
   closeTx,
@@ -40,6 +41,7 @@ import {
   snapshotBalances,
   standardAccounts,
   tokenAmount,
+  tokenAmountOrZero,
   transferToken,
   warpToUnixTimestamp,
 } from "./helpers";
@@ -52,9 +54,11 @@ const ACCOUNT_IN_USE: ErrorExpectation = [
 const MINT_ERRORS: ErrorExpectation = [
   "InvalidMint",
   "ConfigMintMismatch",
+  "ConstraintTokenMint",
+  "AccountOwnedByWrongProgram",
   "ConstraintHasOne",
   "ConstraintSeeds",
-  /token program/i,
+  /token program|token mint constraint|owned by a different program|0xbbf|3007/i,
 ];
 const ESCROW_ERRORS: ErrorExpectation = [
   "InvalidEscrow",
@@ -65,19 +69,22 @@ const ESCROW_ERRORS: ErrorExpectation = [
 const MERCHANT_ERRORS: ErrorExpectation = [
   "UnauthorizedMerchant",
   "ConstraintHasOne",
-  /signature verification|missing signature/i,
+  "ConstraintTokenOwner",
+  /signature verification|missing signature|token owner constraint/i,
 ];
 const PAYER_ATA_ERRORS: ErrorExpectation = [
   "InvalidPayerAta",
+  "ConstraintTokenOwner",
   "ConstraintHasOne",
   "ConstraintSeeds",
-  /associated token|owner does not match/i,
+  /associated token|owner does not match|token owner constraint/i,
 ];
 const TOKEN_PROGRAM_ERRORS: ErrorExpectation = [
   "InvalidMint",
   "InvalidEscrow",
+  "InvalidProgramId",
   "ConstraintHasOne",
-  /token program|incorrect program id|invalid account data|ProgramFailedToComplete/i,
+  /token program|incorrect program id|invalid account data|ProgramFailedToComplete|0xbc0|3008/i,
 ];
 const SEEDS_ERRORS: ErrorExpectation = [
   "ConstraintSeeds",
@@ -353,7 +360,11 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
       await expectRejected(
         paid,
         claimBefore,
-        () => claimTx(ctx, paid, { merchant: ctx.wallets.altMerchant }).rpc(),
+        () =>
+          claimTx(ctx, paid, {
+            merchant: ctx.wallets.altMerchant,
+            merchantAta: ctx.atas.altMerchant,
+          }).rpc(),
         MERCHANT_ERRORS
       );
 
@@ -365,6 +376,7 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
         () =>
           recoverTx(ctx, expiredWithStray, {
             merchant: ctx.wallets.altMerchant,
+            destinationAta: ctx.atas.altMerchant,
           }).rpc(),
         MERCHANT_ERRORS
       );
@@ -413,32 +425,18 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
       );
     });
 
-    it("A13b close then recreate the same invoice_id yields a fresh Open invoice", async () => {
-      const id = nextInvoiceId();
-      const invoice = await createOpenInvoice(ctx, { id });
-      await payTx(ctx, invoice, invoice.amountDue).rpc();
+    it("A13b close then recreate the same invoice_id is rejected (Closed tombstone)", async () => {
+      // Team Lead: invoice_id is never reused. close_invoice keeps a Closed tombstone,
+      // so create_invoice with the same id must fail and the account must stay Closed.
+      const invoice = await paidFixture(AMOUNT_DUE);
       await claimTx(ctx, invoice).rpc();
       await closeTx(ctx, invoice).rpc();
-      await assertInvoiceGone(ctx, invoice.pda);
+      await assertInvoiceTombstoned(ctx, invoice.pda);
 
-      const recreated = await createOpenInvoice(ctx, { id });
-      const account = await fetchInvoice(ctx, recreated.pda);
-      expect(String(account.invoiceId ?? account.invoice_id)).to.equal(
-        id.toString()
-      );
-      expect(statusOf(account)).to.equal("Open");
-      expect(String(account.paidAmount ?? account.paid_amount)).to.equal("0");
-      expect(
-        String(account.refundedExcess ?? account.refunded_excess)
-      ).to.equal("0");
-      expect(String(account.merchant)).to.equal(
-        ctx.wallets.merchant.publicKey.toString()
-      );
-      expect(String(account.payer)).to.equal(web3.PublicKey.default.toString());
-      expect(account.claimed).to.equal(false);
-      expect((await tokenAmount(ctx, recreated.escrow)).toString()).to.equal(
-        "0"
-      );
+      const reuse = makeCreateInvoiceTx(ctx, { id: invoice.id });
+      await expectTxFail(() => reuse.tx.rpc(), ACCOUNT_IN_USE);
+      const tombstone = await fetchInvoice(ctx, invoice.pda);
+      expect(statusOf(tombstone)).to.equal("Closed");
     });
 
     it("A14 Token-2022 mint and Token-2022 token_program are rejected on pay", async () => {
@@ -685,6 +683,8 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
       const openBefore = await baseline(open);
       await expectRejected(open, openBefore, () => refundTx(ctx, open).rpc(), [
         "InvoiceNotPaid",
+        "InvalidPayerAta",
+        "PayerNotRecorded",
       ]);
 
       const expired = await expiredFixture();
@@ -693,7 +693,7 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
         expired,
         expiredBefore,
         () => refundTx(ctx, expired).rpc(),
-        ["InvoiceNotPaid"]
+        ["InvoiceNotPaid", "InvalidPayerAta", "PayerNotRecorded"]
       );
     });
 
@@ -913,30 +913,42 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
       assertBalancesUnchanged(before, await snapshotBalances(ctx, accounts));
     });
 
-    it("X14 close then recreate with a higher amount_due makes the old pay underpay", async () => {
-      // Spec review: a lower recreated amount_due would accept a stale pay as overpay unless
-      // pay_invoice binds the payer's expected amount_due. No new instruction arg is invented here.
-      const id = nextInvoiceId();
-      const original = await createOpenInvoice(ctx, {
-        id,
-        amountDue: AMOUNT_DUE,
-      });
-      await payTx(ctx, original, original.amountDue).rpc();
-      await claimTx(ctx, original).rpc();
-      await closeTx(ctx, original).rpc();
-      await assertInvoiceGone(ctx, original.pda);
+    it("X14 close then recreate the same invoice_id is rejected (Closed tombstone)", async () => {
+      const invoice = await paidFixture(AMOUNT_DUE);
+      await claimTx(ctx, invoice).rpc();
+      await closeTx(ctx, invoice).rpc();
+      await assertInvoiceTombstoned(ctx, invoice.pda);
 
-      const increasedDue = AMOUNT_DUE.mul(new BN(2));
-      const recreated = await createOpenInvoice(ctx, {
-        id,
-        amountDue: increasedDue,
+      const reuse = makeCreateInvoiceTx(ctx, {
+        id: invoice.id,
+        amountDue: AMOUNT_DUE.mul(new BN(2)),
       });
-      const before = await baseline(recreated);
+      await expectTxFail(() => reuse.tx.rpc(), ACCOUNT_IN_USE);
+      const tombstone = await fetchInvoice(ctx, invoice.pda);
+      expect(statusOf(tombstone)).to.equal("Closed");
+      expect(String(tombstone.amountDue ?? tombstone.amount_due)).to.equal(
+        AMOUNT_DUE.toString()
+      );
+    });
+
+    it("X14b stale/cheaper expected_amount_due is rejected with InvoiceMismatch", async () => {
+      // Team Lead M2: pay_invoice takes expected_amount_due (mismatch = InvoiceMismatch).
+      // invoice_id reuse is blocked by the Closed tombstone (X14/A13b), so a stale pay
+      // cannot land on a cheaper recreated invoice. This still signs a pay bound to a
+      // cheaper expected_amount_due against the live (more expensive) invoice — it must
+      // fail with InvoiceMismatch and must not transfer.
+      const invoice = await createOpenInvoice(ctx, {
+        amountDue: AMOUNT_DUE.mul(new BN(2)),
+      });
+      const before = await baseline(invoice);
       await expectRejected(
-        recreated,
+        invoice,
         before,
-        () => payTx(ctx, recreated, AMOUNT_DUE).rpc(),
-        ["Underpayment"]
+        () =>
+          payTx(ctx, invoice, AMOUNT_DUE.mul(new BN(2)), {
+            expectedAmountDue: AMOUNT_DUE,
+          }).rpc(),
+        ["InvoiceMismatch"]
       );
     });
 
@@ -963,7 +975,8 @@ describeAdversarial("Paytruth adversarial rejection suite", () => {
       expect(afterRecover.balances.escrow).to.equal("0");
 
       await closeTx(ctx, invoice).rpc();
-      await assertInvoiceGone(ctx, invoice.pda);
+      await assertInvoiceTombstoned(ctx, invoice.pda);
+      expect((await tokenAmountOrZero(ctx, invoice.escrow)).toString()).to.equal("0");
     });
 
     it("X16 unclaimed Paid vault still holding amount_due cannot be recovered", async () => {
@@ -999,6 +1012,9 @@ function statusOf(account: any): string {
     if ("expired" in status) {
       return "Expired";
     }
+    if ("closed" in status) {
+      return "Closed";
+    }
   }
   const text = String(status);
   if (/^0$/.test(text) || /open/i.test(text)) {
@@ -1009,6 +1025,9 @@ function statusOf(account: any): string {
   }
   if (/^2$/.test(text) || /expired/i.test(text)) {
     return "Expired";
+  }
+  if (/^3$/.test(text) || /closed/i.test(text)) {
+    return "Closed";
   }
   return text;
 }

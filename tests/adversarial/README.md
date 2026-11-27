@@ -38,3 +38,9 @@ No Circle or devnet mint is used. Each suite run creates a fresh 6-decimal legac
 - `helpers.ts` — loose-typed setup, PDAs, ATAs, mint, balances, snapshots, error matching, clock, and instruction builders.
 - `attacks.ts` — A1–A25 from `docs/TEST-PLAN.md` plus X1–X16 extra QA cases (expiry boundary, third-party refund destination, mint/escrow identity on outbound instructions, decoy vault close, Token-2022 on claim/refund/recover/close, escrow ATA pre-create, close-and-recreate underpayment, recover of stray funds, recover blocked while unclaimed).
 - Spec holes these extra tests encode: `/workspace/solana-hackathon/qa/paytruth-spec-review.md` (S2, S3, M2, and the expiry/refund cases).
+
+## Program contract this suite expects (PR head)
+
+- `payInvoice(amount, expectedAmountDue)` — mismatch returns `InvoiceMismatch` (6022).
+- `close_invoice` leaves a **Closed tombstone** (status = 3); the Invoice account is not deleted, so the same `invoice_id` can never be re-initialized.
+- Anchor constraint errors (`ConstraintTokenOwner` 2015, `ConstraintTokenMint` 2014, `InvalidProgramId` 3008) are accepted alongside the named Paytruth errors when they fire first.
