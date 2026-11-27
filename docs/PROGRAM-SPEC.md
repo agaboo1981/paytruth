@@ -34,13 +34,13 @@ USDC (devnet): `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`, 6 decimals, class
 | merchant | Pubkey | 32 | invoice owner |
 | payer | Pubkey | 32 | `Pubkey::default()` until first successful pay |
 | mint | Pubkey | 32 | must equal `Config.usdc_mint` |
-| invoice_id | u64 | 8 | merchant-chosen; unique per merchant (PDA `init` fails on collision) |
+| invoice_id | u64 | 8 | merchant-chosen; unique per merchant forever (PDA `init` fails on collision, including after close) |
 | amount_due | u64 | 8 | > 0 |
 | paid_amount | u64 | 8 | 0 or `>= amount_due` when Paid |
 | refunded_excess | u64 | 8 | 0 or exactly `paid_amount - amount_due` |
 | created_at | i64 | 8 | `Clock.unix_timestamp` at create |
 | expires_at | i64 | 8 | `> now` at create |
-| status | u8 (InvoiceStatus) | 1 | Open=0, Paid=1, Expired=2 |
+| status | u8 (InvoiceStatus) | 1 | Open=0, Paid=1, Expired=2, Closed=3 |
 | claimed | bool | 1 | set true by `merchant_claim` |
 | bump | u8 | 1 | Invoice PDA bump |
 | memo | [u8;64] | 64 | UTF-8, zero-padded |
@@ -56,8 +56,10 @@ Standard 165-byte classic SPL token account for `(authority = Invoice PDA, mint 
 ### InvoiceStatus
 
 ```
-Open = 0, Paid = 1, Expired = 2
+Open = 0, Paid = 1, Expired = 2, Closed = 3
 ```
+
+`Closed` is a tombstone: `close_invoice` sets `status = Closed` and keeps the Invoice account so the same `invoice_id` can never be re-initialized.
 
 ## Instructions
 
@@ -131,9 +133,9 @@ All monetary transfers use `transfer_checked` with decimals = `USDC_DECIMALS`. O
 ### 8. `close_invoice()`
 
 - Caller: `merchant` signer; must equal `invoice.merchant` else `UnauthorizedMerchant`.
-- Accounts: `merchant` (signer), `invoice` (mut, PDA, `has_one = merchant`, `close = merchant`), `mint`, `escrow` (mut, == Invoice ATA), `token_program`.
+- Accounts: `merchant` (signer), `invoice` (mut, PDA, `has_one = merchant`; the account is **not** closed), `mint`, `escrow` (mut, == Invoice ATA), `token_program`.
 - Preconditions: same terminal + excess-cleared predicate as `recover_unattributed` else `InvoiceNotTerminal` / `ExcessOutstanding`; `escrow.amount == 0` else `VaultNotEmpty`. Open invoices cannot be closed.
-- Effects: close escrow PDA-signed to merchant; close Invoice to merchant (`close = merchant`). Rent returns to merchant.
+- Effects: close the escrow ATA with a PDA-signed `close_account` to the merchant (escrow account is deleted; escrow rent returns to the merchant). Then set `invoice.status = Closed` (=3). All other Invoice fields are left unchanged. The Invoice account is kept, so its rent stays locked in the tombstone; a later `create_invoice` with the same `(merchant, invoice_id)` fails on `init`, and the id cannot be reused.
 - Event: `InvoiceClosed { invoice, merchant }`.
 
 ## Events

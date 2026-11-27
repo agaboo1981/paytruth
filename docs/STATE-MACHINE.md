@@ -1,6 +1,6 @@
 # Paytruth State Machine
 
-States: `Uninitialized` (no account) → `Open` → `Paid` or `Expired`. `Paid` carries two independent flags, `claimed` and `refunded_excess`, then → `Closed` (`close_invoice`, account gone). Paid invoices never transition to Expired.
+States: `Uninitialized` (no account) → `Open` → `Paid` or `Expired`. `Paid` carries two independent flags, `claimed` and `refunded_excess`, then → `Closed` (`close_invoice` sets `status = Closed` (=3) and keeps the Invoice account as a tombstone so the `invoice_id` can never be reused). Paid invoices never transition to Expired.
 
 ## Diagram
 
@@ -11,15 +11,14 @@ stateDiagram-v2
     Open --> Expired : expire_invoice (now >= expires_at)
     Paid --> Paid : merchant_claim (claimed = true)
     Paid --> Paid : refund_overpayment (refunded_excess = excess)
-    Paid --> Closed : close_invoice (claimed, excess cleared, vault empty)
+    Paid --> Closed : close_invoice (claimed, excess cleared, vault empty; Invoice kept)
     Expired --> Expired : recover_unattributed (vault leftovers)
-    Expired --> Closed : close_invoice (vault empty)
-    Closed --> [*]
+    Expired --> Closed : close_invoice (vault empty; Invoice kept)
 ```
 
 Open invoices cannot be closed. `recover_unattributed` does not change status; it only empties leftovers so `close_invoice` can run.
 
-Note: a fresh create on a previously closed invoice_id produces a NEW Open invoice (PDA re-init after close is expected behaviour). While the account exists it cannot be re-initialized.
+Note: after `close_invoice`, the Invoice PDA remains on-chain with `status = Closed` (=3). All other Invoice fields are left unchanged. A later `create_invoice` with the same `(merchant, invoice_id)` fails because the account already exists (`init` cannot re-initialize it). `invoice_id` values are never reused.
 
 ## Transition table
 
@@ -32,7 +31,7 @@ Note: a fresh create on a previously closed invoice_id produces a NEW Open invoi
 | `refund_overpayment` | any (fee payer) | Paid | status == Paid; paid_amount > amount_due; refunded_excess == 0; dest ATA authority == invoice.payer | transfer excess escrow→payer ATA; refunded_excess = excess | OverpaymentRefunded |
 | `expire_invoice` | any (fee payer) | Open | status == Open; now >= expires_at | status = Expired | InvoiceExpired |
 | `recover_unattributed` | merchant | Expired **or** Paid(claimed ∧ excess cleared) | terminal; excess cleared; escrow.amount > 0; signer == merchant; dest authority == merchant | transfer escrow.amount escrow→dest ATA | UnattributedRecovered |
-| `close_invoice` | merchant | Expired **or** Paid(claimed ∧ excess cleared) | terminal; excess cleared; escrow.amount == 0; signer == merchant | close escrow to merchant; close Invoice to merchant → Closed | InvoiceClosed |
+| `close_invoice` | merchant | Expired **or** Paid(claimed ∧ excess cleared) | terminal; excess cleared; escrow.amount == 0; signer == merchant | close escrow ATA (rent to merchant); set Invoice.status = Closed (=3); Invoice account kept (rent stays locked in the tombstone) | InvoiceClosed |
 
 ## Flag truth table (Paid)
 
@@ -65,4 +64,6 @@ Note: a fresh create on a previously closed invoice_id produces a NEW Open invoi
 | `recover_unattributed` with empty vault | `NothingToRecover` |
 | wrong merchant signer on claim/close/recover | `UnauthorizedMerchant` |
 | `create_invoice` with PDA seeds of a different merchant | Anchor seeds constraint failure |
+| `create_invoice` with an invoice_id whose PDA already exists (including a Closed tombstone) | Anchor `init` constraint failure (account already in use); the id cannot be reused |
+| `close_invoice` on an already Closed invoice | `InvoiceNotTerminal` |
 | `expire_invoice` on already Expired | `InvoiceNotOpen` |
