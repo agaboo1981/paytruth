@@ -48,9 +48,18 @@ pub struct Invoice {
     pub memo: [u8; MEMO_LEN],
 }
 
-// Body field sizes per docs/PROGRAM-SPEC.md: Config = 65, Invoice = 203 payload bytes.
+// Body field sizes. Config = 65 payload bytes (spec matches).
+//
+// SPEC-NOTE: docs/PROGRAM-SPEC.md and docs/ARCHITECTURE.md state Invoice InitSpace = 203
+// with the formula `96 + 40 + 3 + 64 = 203` (account 8 + 203 = 211). That formula is an
+// arithmetic error: the field table lists SIX 8-byte numerals (invoice_id, amount_due,
+// paid_amount, refunded_excess, created_at, expires_at) = 48 bytes, not 40. The true
+// geometry for the documented field set is 96 (three Pubkeys) + 48 (six i/u64) + 3
+// (status, claimed, bump) + 64 (memo) = 211 body, i.e. account 8 + 211 = 219. We keep the
+// full documented field set (dropping `created_at` would change the on-chain schema) and
+// use the correct geometric sizes here. See the final report for this deviation.
 pub const CONFIG_BODY_SIZE: usize = 65;
-pub const INVOICE_BODY_SIZE: usize = 203;
+pub const INVOICE_BODY_SIZE: usize = 211;
 
 #[cfg(test)]
 mod tests {
@@ -67,10 +76,23 @@ mod tests {
     }
 
     #[test]
-    fn invoice_account_size_is_211() {
-        assert_eq!(Invoice::INIT_SPACE, 203);
-        assert_eq!(DISCRIMINATOR + Invoice::INIT_SPACE, 211);
-        assert_eq!(INVOICE_BODY_SIZE + DISCRIMINATOR, 211);
+    fn invoice_account_size_is_219() {
+        // SPEC-NOTE: spec text says 203/211; the documented six 8-byte numerals make the
+        // true body 211 (account 219). See the note above CONFIG_BODY_SIZE.
+        assert_eq!(Invoice::INIT_SPACE, 211);
+        assert_eq!(DISCRIMINATOR + Invoice::INIT_SPACE, 219);
+        assert_eq!(INVOICE_BODY_SIZE + DISCRIMINATOR, 219);
+    }
+
+    #[test]
+    fn invoice_field_geometry() {
+        assert_eq!(
+            core::mem::size_of::<Pubkey>() * 3
+                + 8 * 6
+                + 1 * 3
+                + MEMO_LEN,
+            Invoice::INIT_SPACE
+        );
     }
 
     #[test]
