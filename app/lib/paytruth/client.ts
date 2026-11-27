@@ -23,7 +23,7 @@ import {
 import { encodeMemo } from './memo';
 import { getConfigPda, getEscrowAta, getInvoicePda } from './pda';
 import { resolveProgramId } from './program';
-import { signAndSend, fireStage, type PaytruthWallet, type WriteOptions } from './send';
+import { signAndSend, fireStage, type PaytruthWallet, type SendAttempt, type WriteOptions } from './send';
 import type { Commitment, Config, Invoice, PaytruthSdk } from './types';
 import { InvoiceStatus } from './types';
 
@@ -145,68 +145,35 @@ export class PaytruthClient implements PaytruthSdk {
    * On a send timeout / blockhash-exceeded / network error, refetch the invoice
    * at confirmed then finalized; if the landed predicate is true, return the
    * last signature without resubmitting. Only rebuild+resend once the chain
-   * shows it did not land AND the old blockhash has expired.
+   * shows it did not land AND the blockhash the wallet actually signed has
+   * expired.
    */
   async writeWithRecovery(args: WriteWithRecoveryArgs): Promise<WriteResult> {
     const wallet = this.requireWallet();
     const maxAttempts = args.maxAttempts ?? 2;
     let lastSignature: string | null = null;
     let lastBlockhash: string | null = null;
-    let lastValidBlockHeight = 0;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const instructions = await args.build();
 
-      // Capture the blockhash we are about to sign against, so we can decide
-      // whether a retry is safe (never resubmit while it is still valid).
-      let signedBlockhash: string;
-      let signedLastValidBlockHeight: number;
-      try {
-        const bh = await this.connection.getLatestBlockhash('confirmed');
-        signedBlockhash = bh.blockhash;
-        signedLastValidBlockHeight = bh.lastValidBlockHeight;
-      } catch (err) {
-        throw toError(err);
-      }
+      // signAndSend records the signature + the blockhash the wallet actually
+      // signed into this object as soon as it is known (before the send).
+      const info: SendAttempt = { signature: '', signedBlockhash: '' };
 
       try {
         const sig = await signAndSend(this.connection, wallet, instructions, {
           commitment: this.commitment,
           write: args.write,
+          attempt: info,
         });
         return { signature: sig, recovered: false };
       } catch (err) {
-        const mapped = mapError(err);
-        const retryable = mapped.retryable || isTimeoutLike(mapped) || mapped.kind === 'rpc';
-        if (!retryable) throw toError(err);
-
-        // Refetch the account at confirmed, then finalized.
-        const landedConfirmed = await this.safeLanded(args, 'confirmed');
-        if (landedConfirmed) {
-          const recoveredSig = lastSignature ?? signatureOf(err) ?? '';
-          fireStage(args.write, 'confirmed', { signature: recoveredSig });
-          return { signature: recoveredSig, recovered: true };
-        }
-        const landedFinalized = await this.safeLanded(args, 'finalized');
-        if (landedFinalized) {
-          const recoveredSig = lastSignature ?? signatureOf(err) ?? '';
-          fireStage(args.write, 'confirmed', { signature: recoveredSig });
-          return { signature: recoveredSig, recovered: true };
-        }
-
-        // Not landed. Only resubmit if the old blockhash is definitively expired.
-        lastSignature = signatureOf(err) ?? lastSignature;
-        lastBlockhash = signedBlockhash;
-        lastValidBlockHeight = signedLastValidBlockHeight;
-
-        const height = await this.connection.getBlockHeight('confirmed').catch(() => signedLastValidBlockHeight);
-        const expired = height > lastValidBlockHeight;
-        if (!expired) {
-          // Never resubmit while the old blockhash may still be valid.
-          throw new TxTimeoutError(
-            'The transaction did not confirm yet and the blockhash is still valid; not resubmitting.',
-          );
-        }
+        const recovered = await this.recoverAfterError(args, err, info);
+        if (recovered) return recovered;
+        // recoverAfterError signals "resubmit" by returning null.
+        lastSignature = signatureOf(err) ?? info.signature ?? lastSignature;
+        lastBlockhash = info.signedBlockhash || lastBlockhash;
         // fall through to rebuild + resend on the next loop iteration.
       }
     }
@@ -220,6 +187,82 @@ export class PaytruthClient implements PaytruthSdk {
     throw new TxTimeoutError(
       `Transaction did not land after ${maxAttempts} attempts${lastBlockhash ? ` (last blockhash ${lastBlockhash})` : ''}.`,
     );
+  }
+
+  /**
+   * Decide whether to recover (return a WriteResult) or resubmit (return null)
+   * after a signAndSend error. Throws TxTimeoutError when the chain shows the
+   * transaction did not land but the signed blockhash may still be valid.
+   *
+   * Exposes the blockhash-expiry decision against `attempt.signedBlockhash` —
+   * the blockhash the wallet actually signed — never a pre-send fetch of ours.
+   */
+  async recoverAfterError(
+    args: WriteWithRecoveryArgs,
+    err: unknown,
+    attempt?: SendAttempt,
+  ): Promise<WriteResult | null> {
+    const mapped = mapError(err);
+    const retryable = mapped.retryable || isTimeoutLike(mapped) || mapped.kind === 'rpc';
+    if (!retryable) throw toError(err);
+
+    // The attempt object carried on the error (filled by signAndSend) is the
+    // authoritative record of what was signed.
+    const attemptInfo: SendAttempt | undefined =
+      attempt ?? (err as { attempt?: SendAttempt } | null)?.attempt;
+    const recoveredSignature = signatureOf(err) ?? attemptInfo?.signature ?? '';
+
+    // Refetch the account at confirmed, then finalized, before any resubmit.
+    const landedConfirmed = await this.safeLanded(args, 'confirmed');
+    if (landedConfirmed) {
+      fireStage(args.write, 'confirmed', { signature: recoveredSignature });
+      return { signature: recoveredSignature, recovered: true };
+    }
+    const landedFinalized = await this.safeLanded(args, 'finalized');
+    if (landedFinalized) {
+      fireStage(args.write, 'confirmed', { signature: recoveredSignature });
+      return { signature: recoveredSignature, recovered: true };
+    }
+
+    // Not landed. Only resubmit if the blockhash the wallet ACTUALLY signed is
+    // definitively expired.
+    const signedBlockhash = attemptInfo?.signedBlockhash;
+    if (!signedBlockhash) {
+      // No record of what was signed (e.g. the wallet rejected before signing):
+      // be conservative and never resubmit.
+      throw new TxTimeoutError(
+        'The transaction did not confirm yet and the signed blockhash is unknown; not resubmitting.',
+      );
+    }
+
+    const expired = await this.isSignedBlockhashExpired(attemptInfo!);
+    if (!expired) {
+      // Never resubmit while the signed blockhash may still be valid.
+      throw new TxTimeoutError(
+        'The transaction did not confirm yet and the blockhash is still valid; not resubmitting.',
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Whether the signed blockhash is expired. If the wallet kept our blockhash,
+   * compare block height to our lastValidBlockHeight; otherwise ask the cluster
+   * via isBlockhashValid (RPC error => treat as NOT expired).
+   */
+  private async isSignedBlockhashExpired(attempt: SendAttempt): Promise<boolean> {
+    if (attempt.lastValidBlockHeight !== undefined) {
+      const height = await this.connection
+        .getBlockHeight('confirmed')
+        .catch(() => attempt.lastValidBlockHeight!);
+      return height > attempt.lastValidBlockHeight;
+    }
+    try {
+      const res = await this.connection.isBlockhashValid(attempt.signedBlockhash, { commitment: 'confirmed' });
+      return !res.value;
+    } catch {
+      return false; // RPC error => do not resubmit
+    }
   }
 
   private async safeLanded(args: WriteWithRecoveryArgs, commitment: Commitment): Promise<boolean> {
