@@ -27,6 +27,8 @@
     "test": "vitest run",
     "build": "tsup",
     "test:localnet": "PAYTRUTH_LOCALNET=1 vitest run tests/localnet",
+    "devnet:check": "tsx scripts/devnet/demo.ts --check",
+    "devnet:demo": "tsx scripts/devnet/demo.ts",
     "gen:fixtures": "tsx scripts/gen-tx-fixtures.ts",
     "sync:app": "tsx scripts/sync-to-app.ts",
     "check:app-sync": "tsx scripts/sync-to-app.ts --check",

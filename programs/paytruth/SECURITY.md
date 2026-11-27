@@ -33,3 +33,37 @@ Scope: `programs/paytruth/src/**` at branch `feat/program`. Reviewed against doc
 - **F6 (Info) — error-name overlap.** Error `InvoiceExpired` (6003) and event `InvoiceExpired` share a name per spec; distinct IDL namespaces, no runtime impact, but client code must import them carefully.
 
 No High/Medium issues found in self-review. The test suite (H1-H11, A1-A25) exercises these checks; see the test output in the PR or report.
+
+## L5 — Upgrade authority (closed 2026-11-27 11:58 WAT)
+
+QA L5 (`qa/paytruth-spec-review.md`): the spec did not record whether the program is upgradeable or who holds upgrade authority.
+
+**Devnet status:** the program is upgradeable. `solana program show D8dnG9j1zSwwaJLyAvp794MJqEXptdiVS74gh6fNLQ7H --url devnet` after the 11:58 WAT deploy (slot 526845320) reports:
+
+- Authority: `8w3kGAyCZy2uHVHbvtxQvTRzjVHQF8fPh1YshkE4H3xB` (the gitignored devnet deployer keypair; pubkey only)
+- ProgramData: `t7u7WGfXC3Toqx4z9nkdj5D45HCJXCFFx57stin1SA9`
+- Data Length: 269728 bytes
+
+The deployer keypair lives outside the repo (`~/.config/solana/paytruth-devnet-deployer.json`) and is **devnet only**. It is not committed and must never be printed. This is acceptable for the hackathon devnet, not for mainnet custody.
+
+**Plan before any mainnet deploy (do not do this now):**
+
+1. Transfer upgrade authority to a Squads (or equivalent) multisig, or
+2. Mark the program immutable with `solana program set-upgrade-authority <PROGRAM_ID> --final` on the intended cluster.
+
+No authority transfer and no `--final` is performed on devnet in this change. Mainnet remains out of scope. The upgrade-authority field is recorded in `programs/DEPLOYMENTS.md`.
+
+## M6 — `has_one` vs `UnauthorizedMerchant` (closed)
+
+QA M6 (`qa/paytruth-spec-review.md`): a bare Anchor `has_one = merchant` constraint emits `ConstraintHasOne` (2001) before any custom `require!`, so TEST-PLAN A12a (`UnauthorizedMerchant` / 6013) would fail unless the constraint is mapped or the test is loosened.
+
+**Program fix (already in `237152f` / `f50f8bd`, no further bytecode change):** the merchant-gated instructions use a mapped constraint, which keeps Anchor's declarative `has_one` check and returns the spec error:
+
+```rust
+has_one = merchant @ PaytruthError::UnauthorizedMerchant
+```
+
+This is set on `merchant_claim`, `close_invoice`, and `recover_unattributed`. `UnauthorizedMerchant` remains 6013 in `error.rs`.
+
+**Tests:** `programs/paytruth/tests/a12a_wrong_merchant_signer.rs` asserts `assert_custom_error(..., 6013)` on claim, close, and recover, and checks that a wrong signer causes no state or token movement (`claimed` stays false, escrow balance unchanged, attacker ATA stays 0, invoice/escrow accounts remain). Re-verified at `f50f8bd` with `cargo test -p paytruth -- --test-threads=4`: 60 passed, 0 failed, 0 ignored. No additional program change was required to close M6.
+
