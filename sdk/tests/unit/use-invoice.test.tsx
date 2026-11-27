@@ -170,6 +170,43 @@ describe('useInvoice', () => {
     expect(result.current.invoice).toBeNull();
   });
 
+  it('refresh() re-fetches without re-subscribing', async () => {
+    const open = sampleInvoice(InvoiceStatus.Open);
+    const fetchInvoice = vi.fn().mockResolvedValue(open);
+    const unsub = vi.fn();
+    const subscribeInvoice = vi.fn().mockReturnValue(unsub);
+    const client = makeClient({ fetchInvoice, subscribeInvoice });
+    const { result } = renderHook(() => useInvoice(invoicePda, { client }), { wrapper: pass });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const fetchesBefore = fetchInvoice.mock.calls.length;
+    expect(subscribeInvoice).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      result.current.refresh();
+    });
+    await waitFor(() => expect(fetchInvoice.mock.calls.length).toBeGreaterThan(fetchesBefore));
+    expect(subscribeInvoice).toHaveBeenCalledTimes(1);
+    expect(unsub).not.toHaveBeenCalled();
+  });
+
+  it('a new PublicKey instance for the same address does not re-subscribe; a new address does', async () => {
+    const open = sampleInvoice(InvoiceStatus.Open);
+    const unsub = vi.fn();
+    const subscribeInvoice = vi.fn().mockReturnValue(unsub);
+    const client = makeClient({ fetchInvoice: vi.fn().mockResolvedValue(open), subscribeInvoice });
+    const { result, rerender } = renderHook(({ pda }) => useInvoice(pda, { client }), {
+      wrapper: pass,
+      initialProps: { pda: new PublicKey(invoicePda.toBase58()) },
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    rerender({ pda: new PublicKey(invoicePda.toBase58()) });
+    expect(subscribeInvoice).toHaveBeenCalledTimes(1);
+    const other = new PublicKey('Gf8EFcdfrj8LJg9pC6T74UqCsv4LsP6S25PjHmktRVdW');
+    rerender({ pda: other });
+    await waitFor(() => expect(subscribeInvoice).toHaveBeenCalledTimes(2));
+    expect(unsub).toHaveBeenCalledTimes(1);
+    expect((subscribeInvoice.mock.calls[1]![0] as PublicKey).equals(other)).toBe(true);
+  });
+
   it('exports useInvoiceView as an alias', () => {
     expect(useInvoiceView).toBe(useInvoice);
   });

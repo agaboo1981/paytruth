@@ -1,7 +1,7 @@
 import { clusterApiUrl, Connection, PublicKey } from '@solana/web3.js';
 import { PaytruthClient } from './client';
 import { MainnetRefusedError, PaytruthError } from './errors';
-import type { PaytruthWallet } from './send';
+import type { PaytruthWallet, WriteOptions } from './send';
 import type { Commitment, Config, Invoice, PaytruthSdk } from './types';
 
 export interface BindPaytruthArgs {
@@ -108,50 +108,50 @@ export const paytruthSdk: PaytruthSdk = {
     return getBoundClient().fetchEscrowBalance(invoicePda, mint);
   },
 
-  async initializeConfig(args: { usdcMint: PublicKey }): Promise<{ signature: string; configPda: PublicKey }> {
+  async initializeConfig(args: { usdcMint: PublicKey }, opts?: WriteOptions): Promise<{ signature: string; configPda: PublicKey }> {
     requireBoundWallet();
-    return getBoundClient().initializeConfig(args);
+    return getBoundClient().initializeConfig(args, opts);
   },
   async createInvoice(args: {
     invoiceId: bigint;
     amountDue: bigint;
     expiresAt: bigint;
     memo: string | Uint8Array;
-  }): Promise<{ signature: string; invoicePda: PublicKey }> {
+  }, opts?: WriteOptions): Promise<{ signature: string; invoicePda: PublicKey }> {
     requireBoundWallet();
-    return getBoundClient().createInvoice(args);
+    return getBoundClient().createInvoice(args, opts);
   },
-  async payInvoice(args: { invoicePda: PublicKey; amount: bigint; expectedAmountDue: bigint }): Promise<{ signature: string }> {
+  async payInvoice(args: { invoicePda: PublicKey; amount: bigint; expectedAmountDue: bigint }, opts?: WriteOptions): Promise<{ signature: string }> {
     requireBoundWallet();
-    const result = await getBoundClient().payInvoice(args);
+    const result = await getBoundClient().payInvoice(args, opts);
     return { signature: result.signature };
   },
-  async merchantClaim(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
+  async merchantClaim(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }> {
     requireBoundWallet();
-    const result = await getBoundClient().merchantClaim(args);
+    const result = await getBoundClient().merchantClaim(args, opts);
     return { signature: result.signature };
   },
-  async refundOverpayment(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
+  async refundOverpayment(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }> {
     requireBoundWallet();
-    const result = await getBoundClient().refundOverpayment(args);
+    const result = await getBoundClient().refundOverpayment(args, opts);
     return { signature: result.signature };
   },
-  async expireInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
+  async expireInvoice(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }> {
     requireBoundWallet();
-    const result = await getBoundClient().expireInvoice(args);
+    const result = await getBoundClient().expireInvoice(args, opts);
     return { signature: result.signature };
   },
   async recoverUnattributed(args: {
     invoicePda: PublicKey;
     destinationAta: PublicKey;
-  }): Promise<{ signature: string }> {
+  }, opts?: WriteOptions): Promise<{ signature: string }> {
     requireBoundWallet();
-    const result = await getBoundClient().recoverUnattributed(args);
+    const result = await getBoundClient().recoverUnattributed(args, opts);
     return { signature: result.signature };
   },
-  async closeInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }> {
+  async closeInvoice(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }> {
     requireBoundWallet();
-    const result = await getBoundClient().closeInvoice(args);
+    const result = await getBoundClient().closeInvoice(args, opts);
     return { signature: result.signature };
   },
 

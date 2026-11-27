@@ -70,3 +70,29 @@ describe('bound singleton', () => {
     spy.mockRestore();
   });
 });
+
+describe('bound singleton forwards write options', () => {
+  const methods = [
+    ['initializeConfig', { usdcMint: PublicKey.default }],
+    ['createInvoice', { invoiceId: 1n, amountDue: 1n, expiresAt: 1n, memo: 'm' }],
+    ['payInvoice', { invoicePda: PublicKey.default, amount: 1n, expectedAmountDue: 1n }],
+    ['merchantClaim', { invoicePda: PublicKey.default }],
+    ['refundOverpayment', { invoicePda: PublicKey.default }],
+    ['expireInvoice', { invoicePda: PublicKey.default }],
+    ['recoverUnattributed', { invoicePda: PublicKey.default, destinationAta: PublicKey.default }],
+    ['closeInvoice', { invoicePda: PublicKey.default }],
+  ] as const;
+
+  for (const [name, args] of methods) {
+    it(`${name} passes opts (onStage/onSigned) to the bound client`, async () => {
+      bindPaytruth({ connection: conn(), wallet: wallet(Keypair.generate()), programId: PROGRAM_ID });
+      const bound = getBoundClient();
+      const spy = vi
+        .spyOn(bound, name as never)
+        .mockResolvedValue({ signature: 'sig', invoicePda: PublicKey.default, configPda: PublicKey.default } as never);
+      const opts = { onStage: vi.fn(), onSigned: vi.fn() };
+      await (paytruthSdk[name] as (a: unknown, o: unknown) => Promise<unknown>)(args, opts);
+      expect(spy).toHaveBeenCalledWith(args, opts);
+    });
+  }
+});
