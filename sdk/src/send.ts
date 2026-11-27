@@ -4,6 +4,7 @@ import {
   Transaction,
   TransactionInstruction,
   type Connection,
+  type Message,
   type VersionedTransaction,
 } from '@solana/web3.js';
 import { utils } from '@anchor-lang/core';
@@ -131,17 +132,69 @@ function stripComputeBudget(ixs: TransactionInstruction[], who: string): Transac
   return out;
 }
 
-function sameInstruction(a: InstructionLike, b: InstructionLike): boolean {
+/**
+ * Instruction identity at the instruction level: program, data and the ORDERED
+ * account pubkeys. Per-instruction isSigner/isWritable metas are deliberately
+ * NOT compared here: a wallet that round-trips through Transaction.from(bytes)
+ * (Wallet Standard adapters do) rebuilds every meta from the compiled message,
+ * where e.g. the fee payer is always writable. The flags the chain actually
+ * enforces are compared on the normalized compiled message instead.
+ */
+function sameInstructionShape(a: InstructionLike, b: InstructionLike): boolean {
   if (!a.programId.equals(b.programId)) return false;
   if (a.keys.length !== b.keys.length) return false;
   for (let i = 0; i < a.keys.length; i++) {
-    const ka = a.keys[i]!;
-    const kb = b.keys[i]!;
-    if (!ka.pubkey.equals(kb.pubkey)) return false;
-    if (ka.isSigner !== kb.isSigner) return false;
-    if (ka.isWritable !== kb.isWritable) return false;
+    if (!a.keys[i]!.pubkey.equals(b.keys[i]!.pubkey)) return false;
   }
   return Buffer.from(a.data).equals(Buffer.from(b.data));
+}
+
+/** Fixed placeholder so a wallet-refreshed blockhash does not affect the comparison. */
+const NORMALIZE_BLOCKHASH = '11111111111111111111111111111111';
+
+/**
+ * Compile (fee payer + post-strip instructions) with a fixed blockhash. The
+ * result is exactly what the runtime sees for privileges: header (signer and
+ * read-only counts), ordered account keys, and compiled instructions.
+ */
+function normalizedMessage(feePayer: PublicKey, ixs: InstructionLike[]): Message {
+  const tx = new Transaction();
+  tx.feePayer = feePayer;
+  tx.recentBlockhash = NORMALIZE_BLOCKHASH;
+  for (const ix of ixs) {
+    tx.add(
+      new TransactionInstruction({
+        programId: ix.programId,
+        keys: ix.keys.map((k) => ({ pubkey: k.pubkey, isSigner: k.isSigner, isWritable: k.isWritable })),
+        data: Buffer.from(ix.data),
+      }),
+    );
+  }
+  return tx.compileMessage();
+}
+
+function sameCompiledMessage(a: Message, b: Message): boolean {
+  if (
+    a.header.numRequiredSignatures !== b.header.numRequiredSignatures ||
+    a.header.numReadonlySignedAccounts !== b.header.numReadonlySignedAccounts ||
+    a.header.numReadonlyUnsignedAccounts !== b.header.numReadonlyUnsignedAccounts
+  ) {
+    return false;
+  }
+  if (a.accountKeys.length !== b.accountKeys.length) return false;
+  for (let i = 0; i < a.accountKeys.length; i++) {
+    if (!a.accountKeys[i]!.equals(b.accountKeys[i]!)) return false;
+  }
+  if (a.instructions.length !== b.instructions.length) return false;
+  for (let i = 0; i < a.instructions.length; i++) {
+    const x = a.instructions[i]!;
+    const y = b.instructions[i]!;
+    if (x.programIdIndex !== y.programIdIndex) return false;
+    if (x.accounts.length !== y.accounts.length) return false;
+    for (let j = 0; j < x.accounts.length; j++) if (x.accounts[j] !== y.accounts[j]) return false;
+    if (x.data !== y.data) return false; // bs58 strings
+  }
+  return true;
 }
 
 /**
@@ -155,7 +208,11 @@ function sameInstruction(a: InstructionLike, b: InstructionLike): boolean {
  *   one of each. Anything else from the ComputeBudget program is rejected.
  * - After stripping allowlisted ComputeBudget instructions from both sides,
  *   the remaining instructions must be exactly equal: same count, same order,
- *   each identical in programId, data and ordered account metas.
+ *   each identical in programId, data and ordered account pubkeys; signer and
+ *   writable privileges are compared on the normalized compiled message (fixed
+ *   blockhash, ComputeBudget stripped), so a Transaction.from(bytes) rebuild by
+ *   the wallet adapter (fee payer meta becomes writable) is accepted while any
+ *   real privilege change is rejected.
  * - The required signer set (fee payer + all isSigner keys) must be unchanged,
  *   signatures must verify, and every required signer must have signed.
  * - The signed message may not gain a writable account.
@@ -179,9 +236,25 @@ export function verifySignedTransaction(expected: Transaction, signed: Transacti
     if (!got.programId.equals(exp.programId)) {
       throw new WalletModifiedTransactionError('The wallet changed or reordered an instruction.');
     }
-    if (!sameInstruction(exp, got)) {
+    if (!sameInstructionShape(exp, got)) {
       throw new WalletModifiedTransactionError('The wallet modified an instruction\'s accounts or data.');
     }
+  }
+
+  // Privileges as the runtime sees them: compare the normalized compiled
+  // messages (fixed blockhash, allowlisted ComputeBudget stripped). Any signer
+  // or writable change, other than the representation-only rebuild of metas,
+  // changes the header, key order or compiled account indexes and is rejected.
+  let normExpected: Message;
+  let normSigned: Message;
+  try {
+    normExpected = normalizedMessage(expected.feePayer, expectedIxs);
+    normSigned = normalizedMessage(signed.feePayer, signedIxs);
+  } catch {
+    throw new WalletModifiedTransactionError('The wallet returned a transaction that cannot be compiled.');
+  }
+  if (!sameCompiledMessage(normExpected, normSigned)) {
+    throw new WalletModifiedTransactionError('The wallet changed which accounts are signers or writable.');
   }
 
   try {
