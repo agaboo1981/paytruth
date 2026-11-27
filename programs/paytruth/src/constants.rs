@@ -1,10 +1,11 @@
 use anchor_lang::prelude::*;
 
 #[constant]
-pub const COUNTER_SEED: &[u8] = b"counter";
+pub const CONFIG_SEED: &[u8] = b"config";
 
 #[constant]
-pub const HELLO_WORLD_LAMPORTS: u64 = 1;
+pub const INVOICE_SEED: &[u8] = b"invoice";
 
-#[constant]
-pub const MAX_COUNT: u64 = 10;
+pub const USDC_DECIMALS: u8 = 6;
+
+pub const MEMO_LEN: usize = 64;
