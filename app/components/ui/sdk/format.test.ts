@@ -175,6 +175,17 @@ describe('derivedView flag truth table', () => {
     expect(view.canClose).toBe(false);
   });
 
+  it('paid over, refunded, not claimed: refunded (ready to claim)', () => {
+    const view = derivedView(
+      makeInvoice({ status: InvoiceStatus.Paid, paidAmount: 30n * U, claimed: false, refundedExcess: 5n * U }),
+      NOW,
+      25n * U,
+    );
+    expect(view.kind).toBe('refunded');
+    expect(view.canClaim).toBe(true);
+    expect(view.canRefund).toBe(false);
+  });
+
   it('paid over, claimed, refunded, vault empty: close', () => {
     const view = derivedView(
       makeInvoice({
@@ -186,7 +197,7 @@ describe('derivedView flag truth table', () => {
       NOW,
       0n,
     );
-    expect(view.kind).toBe('refunded');
+    expect(view.kind).toBe('claimed');
     expect(view.canRefund).toBe(false);
     expect(view.canRecover).toBe(false);
     expect(view.canClose).toBe(true);
@@ -223,6 +234,25 @@ describe('derivedView flag truth table', () => {
     expect(view.canClose).toBe(false);
   });
 
+  it('closed exposes the closed copy and disables every action', () => {
+    const view = derivedView(
+      makeInvoice({ status: InvoiceStatus.Closed, paidAmount: 25n * U, claimed: true }),
+      NOW,
+      0n,
+    );
+    expect(view.kind).toBe('closed');
+    expect(view.headline).toBe('Closed');
+    expect(view.explanation).toBe(
+      'The merchant closed this invoice after it was settled. Nothing more can happen to it.',
+    );
+    expect(view.canPay).toBe(false);
+    expect(view.canClaim).toBe(false);
+    expect(view.canRefund).toBe(false);
+    expect(view.canExpire).toBe(false);
+    expect(view.canRecover).toBe(false);
+    expect(view.canClose).toBe(false);
+  });
+
   it('every kind exposes headline and explanation', () => {
     const samples = [
       makeInvoice({}),
@@ -230,6 +260,7 @@ describe('derivedView flag truth table', () => {
       makeInvoice({ status: InvoiceStatus.Paid, paidAmount: 30n * U }),
       makeInvoice({ status: InvoiceStatus.Paid, paidAmount: 30n * U, claimed: true, refundedExcess: 5n * U }),
       makeInvoice({ status: InvoiceStatus.Expired }),
+      makeInvoice({ status: InvoiceStatus.Closed, paidAmount: 25n * U, claimed: true }),
     ];
     for (const invoice of samples) {
       const view = derivedView(invoice, NOW, 0n);

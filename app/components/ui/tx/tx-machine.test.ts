@@ -19,9 +19,9 @@ describe('txReducer', () => {
     });
   });
 
-  it('moves from awaiting-signature to sending on SIGNED', () => {
+  it('moves from awaiting-signature to signed on SIGNED', () => {
     expect(txReducer(state('awaiting-signature'), { type: 'SIGNED' })).toEqual({
-      status: 'sending',
+      status: 'signed',
     });
   });
 
@@ -29,6 +29,13 @@ describe('txReducer', () => {
     expect(
       txReducer(state('awaiting-signature'), { type: 'SENT', signature }),
     ).toEqual({ status: 'sending', signature });
+  });
+
+  it('records the signature when SENT arrives from signed', () => {
+    expect(txReducer(state('signed'), { type: 'SENT', signature })).toEqual({
+      status: 'sending',
+      signature,
+    });
   });
 
   it('records the signature when SENT arrives from sending', () => {
@@ -42,6 +49,13 @@ describe('txReducer', () => {
     expect(
       txReducer(state('sending'), { type: 'CONFIRMING', signature }),
     ).toEqual({ status: 'confirming', signature });
+  });
+
+  it('allows confirming directly from signed', () => {
+    expect(txReducer(state('signed'), { type: 'CONFIRMING', signature })).toEqual({
+      status: 'confirming',
+      signature,
+    });
   });
 
   it('allows confirming directly from awaiting-signature', () => {
@@ -59,7 +73,7 @@ describe('txReducer', () => {
     ).toEqual({ status: 'confirming', signature });
   });
 
-  it.each(['awaiting-signature', 'sending', 'confirming'] as const)(
+  it.each(['awaiting-signature', 'signed', 'sending', 'confirming'] as const)(
     'confirms from %s',
     (status) => {
       expect(
@@ -71,7 +85,7 @@ describe('txReducer', () => {
     },
   );
 
-  it.each(['awaiting-signature', 'sending', 'confirming'] as const)(
+  it.each(['awaiting-signature', 'signed', 'sending', 'confirming'] as const)(
     'fails from %s and keeps the signature',
     (status) => {
       const error = { code: 'UNKNOWN', message: 'Transaction failed.' };
@@ -83,7 +97,7 @@ describe('txReducer', () => {
     },
   );
 
-  it.each(['awaiting-signature', 'sending', 'confirming'] as const)(
+  it.each(['awaiting-signature', 'signed', 'sending', 'confirming'] as const)(
     'rejects from %s',
     (status) => {
       expect(txReducer(state(status), { type: 'REJECT' })).toEqual({
@@ -93,7 +107,7 @@ describe('txReducer', () => {
     },
   );
 
-  it.each(['awaiting-signature', 'sending', 'confirming'] as const)(
+  it.each(['awaiting-signature', 'signed', 'sending', 'confirming'] as const)(
     'expires from %s',
     (status) => {
       expect(txReducer(state(status), { type: 'EXPIRE' })).toEqual({
@@ -130,6 +144,11 @@ describe('txReducer', () => {
     expect(txReducer(initialTxState, { type: 'SIGNED' })).toBe(initialTxState);
   });
 
+  it('does nothing on SIGNED from signed', () => {
+    const current = state('signed');
+    expect(txReducer(current, { type: 'SIGNED' })).toBe(current);
+  });
+
   it('does nothing on SIGNED from confirming', () => {
     const current = state('confirming', signature);
     expect(txReducer(current, { type: 'SIGNED' })).toBe(current);
@@ -158,7 +177,7 @@ describe('txReducer', () => {
   });
 
   it('resets from idle and in-flight states', () => {
-    for (const status of ['idle', 'awaiting-signature', 'sending', 'confirming'] as const) {
+    for (const status of ['idle', 'awaiting-signature', 'signed', 'sending', 'confirming'] as const) {
       expect(txReducer(state(status, signature), { type: 'RESET' })).toEqual(initialTxState);
     }
   });

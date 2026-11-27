@@ -1,6 +1,8 @@
 import { PublicKey } from '@solana/web3.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { WriteOptions } from '../../../lib/paytruth';
+
 import { fixtureSpecs, MOCK_WALLET } from './fixtures';
 import { FAIL_KEY, STORAGE_KEY, type StorageLike } from './mock-config';
 import { MockPaytruthSdk, PaytruthProgramError } from './mock-sdk';
@@ -23,6 +25,19 @@ const U = 1_000_000n;
 const OPEN = fixtureSpecs.open.pda;
 const EXPIRING = fixtureSpecs.expiring.pda;
 
+function stageRecorder(): { stages: string[]; opts: WriteOptions } {
+  const stages: string[] = [];
+  const opts: WriteOptions = {
+    onStage(stage, info) {
+      stages.push(info?.signature ? `${stage}:${info.signature}` : stage);
+    },
+    onSigned(signature) {
+      stages.push(`onSigned:${signature}`);
+    },
+  };
+  return { stages, opts };
+}
+
 async function expectProgramError(promise: Promise<unknown>, name: string, hex: string): Promise<void> {
   let caught: unknown;
   try {
@@ -41,7 +56,7 @@ describe('MockPaytruthSdk', () => {
 
   beforeEach(() => {
     storage = createStorage();
-    sdk = new MockPaytruthSdk({ storage });
+    sdk = new MockPaytruthSdk({ storage, stageDelayMs: 0 });
   });
 
   it('seeds the fixtures on first load', () => {
@@ -136,7 +151,7 @@ describe('MockPaytruthSdk', () => {
     await sdk.payInvoice({ invoicePda: pda, amount: 25n * U });
     await sdk.merchantClaim({ invoicePda: pda });
     await sdk.closeInvoice({ invoicePda: pda });
-    await expect(sdk.fetchInvoice(pda)).rejects.toThrow();
+    await expect(sdk.fetchInvoice(pda)).rejects.toThrow(/not found/i);
   });
 
   it('honours the fail mode and clears it after use', async () => {
@@ -157,5 +172,90 @@ describe('MockPaytruthSdk', () => {
       timeoutMs: 2000,
     });
     expect(result.status).toBe(InvoiceStatus.Open);
+  });
+});
+
+describe('MockPaytruthSdk write stages', () => {
+  let storage: StorageLike;
+  let sdk: MockPaytruthSdk;
+
+  beforeEach(() => {
+    storage = createStorage();
+    sdk = new MockPaytruthSdk({ storage, stageDelayMs: 0 });
+  });
+
+  it('fires awaiting-signature, signed, sent, and confirmed in order on success', async () => {
+    const pda = new PublicKey(OPEN);
+    const { stages, opts } = stageRecorder();
+    const result = await sdk.payInvoice(
+      { invoicePda: pda, amount: 25n * U, expectedAmountDue: 25n * U },
+      opts,
+    );
+
+    expect(result.signature.length).toBeGreaterThan(20);
+    expect(stages).toEqual([
+      'awaiting-signature',
+      'signed',
+      `onSigned:${result.signature}`,
+      `sent:${result.signature}`,
+      `confirmed:${result.signature}`,
+    ]);
+  });
+
+  it('reject after awaiting-signature emits no signed event', async () => {
+    storage.setItem(FAIL_KEY, 'reject');
+    const pda = new PublicKey(OPEN);
+    const { stages, opts } = stageRecorder();
+    await expect(
+      sdk.payInvoice({ invoicePda: pda, amount: 25n * U, expectedAmountDue: 25n * U }, opts),
+    ).rejects.toThrow(/User rejected/);
+    expect(stages).toEqual(['awaiting-signature']);
+    expect(storage.getItem(FAIL_KEY)).toBeNull();
+  });
+
+  it('expire fires sent but no confirmed event and does not change state', async () => {
+    storage.setItem(FAIL_KEY, 'expire');
+    const pda = new PublicKey(OPEN);
+    const { stages, opts } = stageRecorder();
+    await expect(
+      sdk.payInvoice({ invoicePda: pda, amount: 25n * U, expectedAmountDue: 25n * U }, opts),
+    ).rejects.toThrow(/block height exceeded/);
+
+    expect(stages).toHaveLength(4);
+    expect(stages[0]).toBe('awaiting-signature');
+    expect(stages[1]).toBe('signed');
+    expect(stages[2]).toMatch(/^onSigned:.{20,}$/);
+    expect(stages[3]).toMatch(/^sent:.{20,}$/);
+    expect(storage.getItem(FAIL_KEY)).toBeNull();
+    const invoice = await sdk.fetchInvoice(pda);
+    expect(invoice.status).toBe(InvoiceStatus.Open);
+    expect(invoice.paidAmount).toBe(0n);
+  });
+
+  it('error fires signed but no sent event and does not change state', async () => {
+    storage.setItem(FAIL_KEY, 'error');
+    const pda = new PublicKey(OPEN);
+    const { stages, opts } = stageRecorder();
+    await expect(
+      sdk.payInvoice({ invoicePda: pda, amount: 25n * U, expectedAmountDue: 25n * U }, opts),
+    ).rejects.toThrow(/Simulation failed/);
+
+    expect(stages).toHaveLength(3);
+    expect(stages[0]).toBe('awaiting-signature');
+    expect(stages[1]).toBe('signed');
+    expect(stages[2]).toMatch(/^onSigned:.{20,}$/);
+    expect(storage.getItem(FAIL_KEY)).toBeNull();
+    const invoice = await sdk.fetchInvoice(pda);
+    expect(invoice.status).toBe(InvoiceStatus.Open);
+    expect(invoice.paidAmount).toBe(0n);
+  });
+
+  it('rejects a stale expectedAmountDue with InvoiceMismatch (6022)', async () => {
+    const pda = new PublicKey(OPEN);
+    await expectProgramError(
+      sdk.payInvoice({ invoicePda: pda, amount: 25n * U, expectedAmountDue: 24n * U }),
+      'InvoiceMismatch',
+      '0x1786',
+    );
   });
 });

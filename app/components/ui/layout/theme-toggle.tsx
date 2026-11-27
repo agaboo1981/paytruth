@@ -12,7 +12,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   useEffect(() => {
     let saved: Theme = 'dark';
     try {
-      saved = window.localStorage.getItem('kit-theme') === 'light' ? 'light' : 'dark';
+      saved = window.localStorage.getItem('paytruth-theme') === 'light' ? 'light' : 'dark';
     } catch {
       saved = 'dark';
     }
@@ -29,7 +29,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       ?.setAttribute('content', next === 'dark' ? '#071513' : '#f4f6ee');
     if (persist) {
       try {
-        window.localStorage.setItem('kit-theme', next);
+        window.localStorage.setItem('paytruth-theme', next);
       } catch {
         setTheme(next);
         return;
@@ -67,7 +67,7 @@ export function ThemeToggle({ className }: { className?: string }) {
           />
         )}
       </svg>
-      {theme === 'dark' ? 'Dark' : 'Light'}
+      <span className="hidden sm:inline">{theme === 'dark' ? 'Dark' : 'Light'}</span>
     </button>
   );
 }

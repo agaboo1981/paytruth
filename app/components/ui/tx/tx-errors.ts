@@ -1,3 +1,4 @@
+import { mapError } from '../../../lib/paytruth';
 import type { TxError, TxPhase } from './tx-machine';
 
 export type TxFailurePhase = Extract<TxPhase, 'failed' | 'rejected' | 'expired'>;
@@ -111,85 +112,121 @@ function extractProgramError(text: string): ProgramErrorCode | null {
 }
 
 export function mapTxError(error: unknown): MappedTxError {
+  const mapped = mapError(error);
   const message = readMessage(error);
   const text = searchText(error);
-  const lower = text.toLowerCase();
+  const lower = `${text} ${mapped.name ?? ''} ${mapped.message}`.toLowerCase();
   const raw = message.length > 0 ? message : undefined;
   const hasInsufficientContext =
-    /insufficientfunds|insufficient\s*(funds|lamports|sol)|not enough sol/.test(lower);
+    /insufficientfunds|insufficient\s*(funds|lamports|sol)|not enough sol|needs sol|no record of a prior credit/.test(
+      lower,
+    );
   const hasProgramErrorContext =
     /instructionerror|simulation failed|custom program error|program error/.test(lower);
 
+  function result(phase: TxFailurePhase, code: string, friendly: string): MappedTxError {
+    return {
+      phase,
+      error: { code, message: friendly, ...(raw ? { raw } : {}) },
+    };
+  }
+
+  const walletRejection =
+    (mapped.kind === 'wallet' && /reject|cancel|closed|disconnect|did not respond/.test(lower)) ||
+    /walletsigntransactionerror|user rejected|rejected the request|rejected by user|signing cancelled|signing canceled/.test(
+      lower,
+    );
+  if (walletRejection) {
+    return result('rejected', 'USER_REJECTED', 'You cancelled in your wallet. Nothing was sent and no money moved.');
+  }
+
+  // FS SDK typed errors (c94222a): use FS's own plain-language messages.
+  if (mapped.name === 'FeePayerUnfunded') {
+    return result('failed', 'INSUFFICIENT_SOL', mapped.message);
+  }
+  if (mapped.name === 'InvoiceClosed') {
+    return result('failed', 'INVOICE_CLOSED', `${mapped.message} No money moved.`);
+  }
+  if (error instanceof Error && error.name === 'InvoiceExpiredError') {
+    return result('failed', 'INVOICE_EXPIRED', `${mapped.message} No money moved.`);
+  }
+
   if (
-    /walletsigntransactionerror/.test(lower) ||
-    /user rejected|rejected the request|rejected by user|signing cancelled|signing canceled/.test(lower)
+    /timeout|timed out|blockhashnotfound|blockhash not found|block height exceeded|blockhash.*expired/.test(
+      lower,
+    )
   ) {
-    return {
-      phase: 'rejected',
-      error: {
-        code: 'USER_REJECTED',
-        message: 'You cancelled in your wallet. Nothing was sent and no money moved.',
-        ...(raw ? { raw } : {}),
-      },
-    };
-  }
-
-  if (hasInsufficientContext || (/\b0x1\b/.test(lower) && !hasProgramErrorContext)) {
-    return {
-      phase: 'failed',
-      error: {
-        code: 'INSUFFICIENT_FUNDS',
-        message: 'Not enough SOL to cover this transaction and fees.',
-        ...(raw ? { raw } : {}),
-      },
-    };
+    return result(
+      'expired',
+      'BLOCKHASH_EXPIRED',
+      "The network didn't pick this up in time. No money moved — it's safe to try again.",
+    );
   }
 
   if (
-    /blockhashnotfound|blockhash not found|block height exceeded|blockhash.*expired/.test(lower)
+    (mapped.kind === 'anchor' && mapped.code === 3012) ||
+    mapped.name === 'AccountNotInitialized' ||
+    mapped.name === 'InvoiceNotFoundError' ||
+    /invoice not found/i.test(lower)
   ) {
-    return {
-      phase: 'expired',
-      error: {
-        code: 'BLOCKHASH_EXPIRED',
-        message: "The network didn't pick this up in time. No money moved — it's safe to try again.",
-        ...(raw ? { raw } : {}),
-      },
-    };
+    return result('failed', 'INVOICE_CLOSED', 'This invoice is closed and can no longer be paid. No money moved.');
   }
 
-  const programError = extractProgramError(text);
+  if (
+    (mapped.kind === 'wallet' && mapped.name === 'WalletNotConnectedError') ||
+    /connect a wallet first|no wallet is connected|walletnotconnected/i.test(lower)
+  ) {
+    return result('failed', 'WALLET_NOT_CONNECTED', 'Connect your wallet to continue.');
+  }
+
+  if (
+    mapped.name === 'WalletModifiedTransactionError' ||
+    /wallet (changed|modified)|modified the transaction/i.test(lower)
+  ) {
+    return result(
+      'failed',
+      'WALLET_MODIFIED',
+      'Your wallet changed the transaction, so we stopped it. Nothing was sent.',
+    );
+  }
+
+  if (mapped.name === 'MainnetRefusedError' || /mainnet|refuses to run against/i.test(lower)) {
+    return result('failed', 'MAINNET_REFUSED', 'Paytruth only runs on devnet.');
+  }
+
+  if (mapped.kind === 'token' || (mapped.name === 'InsufficientFunds' && /token|usdc/i.test(lower))) {
+    return result('failed', 'INSUFFICIENT_USDC', 'Not enough USDC in your wallet.');
+  }
+
+  if (hasInsufficientContext) {
+    return result('failed', 'INSUFFICIENT_SOL', 'Not enough SOL to pay the network fee.');
+  }
+
+  const mappedProgram =
+    mapped.kind === 'program' && mapped.code !== undefined && mapped.code >= 6000 && mapped.code <= 6021
+      ? lookupProgramError(mapped.code)
+      : null;
+  const programError =
+    mappedProgram ??
+    (mapped.kind === 'program' && mapped.code === 6022
+      ? {
+          code: 6022,
+          name: 'InvoiceMismatch',
+          message: 'The invoice changed since you loaded it; reload and try again.',
+        }
+      : extractProgramError(text));
   if (programError) {
-    return {
-      phase: 'failed',
-      error: {
-        code: programError.name,
-        message: programError.message,
-        ...(raw ? { raw } : {}),
-      },
-    };
+    return result('failed', programError.name, programError.message);
   }
 
-  if (/instructionerror|simulation failed|custom program error|program error/.test(lower)) {
+  if (hasProgramErrorContext) {
     const code = text.match(/0x[0-9a-fA-F]+/)?.[0];
-    return {
-      phase: 'failed',
-      error: {
-        code: 'PROGRAM_ERROR',
-        message: code
-          ? `Simulation failed (program error ${code}).`
-          : 'Simulation failed. Check the program logs.',
-        ...(raw ? { raw } : {}),
-      },
-    };
+    return result(
+      'failed',
+      'PROGRAM_ERROR',
+      code ? `Simulation failed (program error ${code}).` : 'Simulation failed. Check the program logs.',
+    );
   }
 
-  return {
-    phase: 'failed',
-    error: {
-      code: 'UNKNOWN',
-      message: 'Transaction failed. Try again.',
-      ...(raw ? { raw } : {}),
-    },
-  };
+  return result('failed', 'UNKNOWN', 'Transaction failed. Try again.');
 }

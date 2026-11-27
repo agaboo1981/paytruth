@@ -106,11 +106,17 @@ export function useInvoice(invoicePda: PublicKey | null, opts?: UseInvoiceOption
   const [nonce, setNonce] = useState(0);
 
   const refresh = useCallback(() => setNonce((v) => v + 1), []);
+  // Stable key: callers often pass a fresh PublicKey each render. Effects
+  // depend on this memoized instance so they only re-run when the address
+  // actually changes.
   const pdaKey = invoicePda ? invoicePda.toBase58() : null;
+  const pda = useMemo(() => (pdaKey ? new PublicKey(pdaKey) : null), [pdaKey]);
   const recheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Fetch / reconcile effect: re-runs on refresh (nonce), commitment, client
+  // or address change. Never touches the websocket subscription.
   useEffect(() => {
-    if (!invoicePda || !pdaKey) {
+    if (!pda) {
       setInvoice(null);
       setEscrowBalance(null);
       setLoading(false);
@@ -121,7 +127,6 @@ export function useInvoice(invoicePda: PublicKey | null, opts?: UseInvoiceOption
     }
 
     let active = true;
-    let disposed = false;
     if (recheckTimer.current) {
       clearTimeout(recheckTimer.current);
       recheckTimer.current = null;
@@ -130,16 +135,16 @@ export function useInvoice(invoicePda: PublicKey | null, opts?: UseInvoiceOption
 
     const load = async () => {
       try {
-        const confirmed = await client.fetchInvoice(invoicePda, 'confirmed');
+        const confirmed = await client.fetchInvoice(pda, 'confirmed');
         if (!active) return;
         setInvoice(confirmed);
-        setEscrowBalance(await client.fetchEscrowBalance(invoicePda, confirmed.mint).catch(() => null));
+        setEscrowBalance(await client.fetchEscrowBalance(pda, confirmed.mint).catch(() => null));
         setError(null);
         setErrorKind(null);
 
         const [finalizedInvoice, balance] = await Promise.all([
-          client.fetchInvoice(invoicePda, 'finalized').catch(() => null),
-          client.fetchEscrowBalance(invoicePda, confirmed.mint).catch(() => null),
+          client.fetchInvoice(pda, 'finalized').catch(() => null),
+          client.fetchEscrowBalance(pda, confirmed.mint).catch(() => null),
         ]);
         if (!active) return;
         setEscrowBalance(balance);
@@ -150,11 +155,9 @@ export function useInvoice(invoicePda: PublicKey | null, opts?: UseInvoiceOption
           // Not yet finalized: show the confirmed account and re-check later.
           setFinalized(false);
           setInvoice(confirmed);
-          if (!disposed) {
-            recheckTimer.current = setTimeout(() => {
-              if (active) setNonce((v) => v + 1);
-            }, 2000);
-          }
+          recheckTimer.current = setTimeout(() => {
+            if (active) setNonce((v) => v + 1);
+          }, 2000);
         }
       } catch (caught) {
         if (!active) return;
@@ -170,14 +173,28 @@ export function useInvoice(invoicePda: PublicKey | null, opts?: UseInvoiceOption
 
     void load();
 
-    const unsubscribe = client.subscribeInvoice(invoicePda, (next) => {
+    return () => {
+      active = false;
+      if (recheckTimer.current) {
+        clearTimeout(recheckTimer.current);
+        recheckTimer.current = null;
+      }
+    };
+  }, [client, pda, commitment, nonce]);
+
+  // Subscription effect: depends only on the client (connection) and the
+  // address, so refresh() never tears down / re-opens the websocket.
+  useEffect(() => {
+    if (!pda) return undefined;
+    let active = true;
+    const unsubscribe = client.subscribeInvoice(pda, (next) => {
       if (!active) return;
       if (next === null) {
         // Account removed.
         setInvoice(null);
         setEscrowBalance(0n);
         setFinalized(false);
-        setError(new InvoiceNotFoundError(invoicePda.toBase58()));
+        setError(new InvoiceNotFoundError(pda.toBase58()));
         setErrorKind('not-found');
         return;
       }
@@ -185,31 +202,25 @@ export function useInvoice(invoicePda: PublicKey | null, opts?: UseInvoiceOption
       setFinalized(false);
       setInvoice(next);
       void client
-        .fetchEscrowBalance(invoicePda, next.mint)
+        .fetchEscrowBalance(pda, next.mint)
         .then((b) => {
           if (active) setEscrowBalance(b);
         })
         .catch(() => undefined);
-      // Trigger a fresh confirmed+finalized reconcile.
-      if (active) setNonce((v) => v + 1);
+      // Trigger a fresh confirmed+finalized reconcile (re-fetch only).
+      setNonce((v) => v + 1);
     });
-
     return () => {
       active = false;
-      disposed = true;
-      if (recheckTimer.current) {
-        clearTimeout(recheckTimer.current);
-        recheckTimer.current = null;
-      }
       unsubscribe();
     };
-  }, [client, pdaKey, commitment, nonce]);
+  }, [client, pda]);
 
   const view = useMemo(() => {
     const nowSec = BigInt(Math.floor(Date.now() / 1000));
-    if (invoicePda === null) return null;
+    if (pda === null) return null;
     return deriveInvoiceView(invoice, escrowBalance, { commitment, nowSec });
-  }, [invoice, escrowBalance, commitment, invoicePda]);
+  }, [invoice, escrowBalance, commitment, pda]);
 
   return { invoice, escrowBalance, loading, error, errorKind, finalized, refresh, view };
 }

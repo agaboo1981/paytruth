@@ -1,0 +1,113 @@
+[
+  {
+    "step": "funding (by FS)",
+    "result": "merchant FKoGJXKscKfNZUYp2SRmVBfpM8MyxguCdGPPqKRfXAHG 0.05 SOL; payer 5VXVv9HfM4HvtidVth6X7jnVtZqYnV9aR2GJGPWZjPsG 0.02 SOL + 2.5 USDC"
+  },
+  {
+    "step": "read-only /verify + /pay of FS runner invoices A/B/C",
+    "result": "ok"
+  },
+  {
+    "step": "create A",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "signature": "2ATXnRjcN8CADK28Yjmpaam9s4mjmskZpxeqctYodsyquK5nNzuF9VgBpFTTaPtfUsEdXVGVRLraNhHnSAzssYQZ",
+    "explorer": "https://explorer.solana.com/tx/2ATXnRjcN8CADK28Yjmpaam9s4mjmskZpxeqctYodsyquK5nNzuF9VgBpFTTaPtfUsEdXVGVRLraNhHnSAzssYQZ?cluster=devnet",
+    "result": "finalized, err=null; signature read from chain (success screen had no tx link - fixed)"
+  },
+  {
+    "step": "pay exact A (1.00 USDC)",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "signature": "2DBchxu8yxvo619mtmXbD25tM1ZxuLpdD1JbdEptecTLWebKGJ34yKYdfXzobPgKy9T25AikcW7hfoNw3gDasi1b",
+    "explorer": "https://explorer.solana.com/tx/2DBchxu8yxvo619mtmXbD25tM1ZxuLpdD1JbdEptecTLWebKGJ34yKYdfXzobPgKy9T25AikcW7hfoNw3gDasi1b?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "duplicate pay A blocked (paid page, no pay button)",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "result": "ok"
+  },
+  {
+    "step": "claim A",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "signature": "4zxtfzutcCUu5e6eM2sKZyPqZTsN6omoWASYTd2pJ7MuwwTpMqS1Ehk65SX9vEc19HqxPGzZm51RPZPR85Df3F6z",
+    "explorer": "https://explorer.solana.com/tx/4zxtfzutcCUu5e6eM2sKZyPqZTsN6omoWASYTd2pJ7MuwwTpMqS1Ehk65SX9vEc19HqxPGzZm51RPZPR85Df3F6z?cluster=devnet",
+    "result": "finalized, err=null; UI click; signature read from chain (UI unmounted the status before 'Final' - fixed)"
+  },
+  {
+    "step": "close A (after claim)",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "signature": "31NEa1ENFiJFUxPJDgmgLYzLmRE5GkyaJjkYETvKNNZtDAGD18B3YovdAFJwMjPHSbZDvFC5o7Hw7gp8HctmwyZQ",
+    "explorer": "https://explorer.solana.com/tx/31NEa1ENFiJFUxPJDgmgLYzLmRE5GkyaJjkYETvKNNZtDAGD18B3YovdAFJwMjPHSbZDvFC5o7Hw7gp8HctmwyZQ?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "pay-after-close A: closed copy, no pay button; /verify Closed",
+    "pda": "3JMq7grJ4Nk8Jwr66pu9DR32X58ZQ5F5VYgJQqmE8J5n",
+    "result": "ok"
+  },
+  {
+    "step": "create B",
+    "pda": "BKyuoDnxY6AVxghSSAmR6ARwjyzpqURy566pQB5S7fYo",
+    "signature": "39i8mdQQ34qgc97epjdw8Qbp31fC64ZoB7fDR84p6dbvKGoF3wV1qEkviNyeVqmPZgreNFkYxLXgK25ZynzsgGJ2",
+    "explorer": "https://explorer.solana.com/tx/39i8mdQQ34qgc97epjdw8Qbp31fC64ZoB7fDR84p6dbvKGoF3wV1qEkviNyeVqmPZgreNFkYxLXgK25ZynzsgGJ2?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "overpay B (1.50 for 1.00)",
+    "pda": "BKyuoDnxY6AVxghSSAmR6ARwjyzpqURy566pQB5S7fYo",
+    "signature": "2YVDb5RTT6H8TcNMobK56deVES4scuxoLHSxY8jHfNqynpiT1mrbVjN7evMPNJNxaA9vUsdLRaM29GCFbwLLj1gD",
+    "explorer": "https://explorer.solana.com/tx/2YVDb5RTT6H8TcNMobK56deVES4scuxoLHSxY8jHfNqynpiT1mrbVjN7evMPNJNxaA9vUsdLRaM29GCFbwLLj1gD?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "refund B excess (0.50)",
+    "pda": "BKyuoDnxY6AVxghSSAmR6ARwjyzpqURy566pQB5S7fYo",
+    "signature": "5Cc2GY6PDTvx5RBAfXXQH6kcdZwm44SvKpTs737rd1JkytSMxdGatViUpfLMsu5a5NUhs8BJTR7UQ8rB3nuLHrat",
+    "explorer": "https://explorer.solana.com/tx/5Cc2GY6PDTvx5RBAfXXQH6kcdZwm44SvKpTs737rd1JkytSMxdGatViUpfLMsu5a5NUhs8BJTR7UQ8rB3nuLHrat?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "claim B",
+    "pda": "BKyuoDnxY6AVxghSSAmR6ARwjyzpqURy566pQB5S7fYo",
+    "signature": "5YVZqLTeLLDytsqeCEnZSEcLGw1Mc1kkiNs8hFHJLLMKnkywVWtQdGRaZQegVi1caYXqMd33B2MuciZuUgkWsFwG",
+    "explorer": "https://explorer.solana.com/tx/5YVZqLTeLLDytsqeCEnZSEcLGw1Mc1kkiNs8hFHJLLMKnkywVWtQdGRaZQegVi1caYXqMd33B2MuciZuUgkWsFwG?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "close B",
+    "pda": "BKyuoDnxY6AVxghSSAmR6ARwjyzpqURy566pQB5S7fYo",
+    "signature": "27Hy6YaFTYePsRip4Num5Fv4Kzr9Vhk6fWNompfoXzm1Rzwhs46Ep1cbVw4KhUCb5noR1HvqTgPFqhuQhiXaTEzo",
+    "explorer": "https://explorer.solana.com/tx/27Hy6YaFTYePsRip4Num5Fv4Kzr9Vhk6fWNompfoXzm1Rzwhs46Ep1cbVw4KhUCb5noR1HvqTgPFqhuQhiXaTEzo?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "create C (2-min expiry)",
+    "pda": "G4SZmy5jehpPRS2nxCGk2fvfB8Sap7qB9p5bmvQ4ZTbF",
+    "signature": "2akzSm2kMiPkUCwgghte3sBaG3WXYPda5trH9ZYsct7MX5kQsi5JzPrRkX2RV3xEvzDU7EDoi4qjK573TudGfTqX",
+    "explorer": "https://explorer.solana.com/tx/2akzSm2kMiPkUCwgghte3sBaG3WXYPda5trH9ZYsct7MX5kQsi5JzPrRkX2RV3xEvzDU7EDoi4qjK573TudGfTqX?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "expire C",
+    "pda": "G4SZmy5jehpPRS2nxCGk2fvfB8Sap7qB9p5bmvQ4ZTbF",
+    "signature": "7Y6AjF25oasherae1UdxTTYu2ooqZgscUx6HDY6auyNcwnhze4uwYZGhWHNHw9PvpSuFaJJ9nhmk6zNNT1kdi9V",
+    "explorer": "https://explorer.solana.com/tx/7Y6AjF25oasherae1UdxTTYu2ooqZgscUx6HDY6auyNcwnhze4uwYZGhWHNHw9PvpSuFaJJ9nhmk6zNNT1kdi9V?cluster=devnet",
+    "result": "finalized, err=null; UI click; signature read from chain (UI unmounted the status before 'Final' - fixed)"
+  },
+  {
+    "step": "close C (after expiry)",
+    "pda": "G4SZmy5jehpPRS2nxCGk2fvfB8Sap7qB9p5bmvQ4ZTbF",
+    "signature": "gchG6kJ3GbJYECwwBCLtucW4qw76B4w9gJYBuTeUZYyw64yZqLwR49deyRkNdaernYhoDZ6fMrFXEsb6NZpCNS9",
+    "explorer": "https://explorer.solana.com/tx/gchG6kJ3GbJYECwwBCLtucW4qw76B4w9gJYBuTeUZYyw64yZqLwR49deyRkNdaernYhoDZ6fMrFXEsb6NZpCNS9?cluster=devnet",
+    "result": "finalized, err=null"
+  },
+  {
+    "step": "pay-after-close C: closed copy, no pay button; /verify Closed",
+    "pda": "G4SZmy5jehpPRS2nxCGk2fvfB8Sap7qB9p5bmvQ4ZTbF",
+    "result": "ok"
+  },
+  {
+    "step": "end balances",
+    "result": "merchant 0.04317828 SOL + 2 USDC; payer 0.019985 SOL + 0.5 USDC (2.5 - 1 - 1.5 + 0.5 refund)"
+  }
+]

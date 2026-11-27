@@ -1,5 +1,6 @@
 // GENERATED from sdk/src by `pnpm sync:app` — do not edit here.
 import type { PublicKey } from '@solana/web3.js';
+import type { WriteOptions } from './send';
 
 export type Commitment = 'processed' | 'confirmed' | 'finalized';
 
@@ -49,19 +50,19 @@ export interface PaytruthSdk {
   fetchEscrowBalance(invoicePda: PublicKey, mint: PublicKey): Promise<bigint>;
 
   // Writes (return confirmed signature; caller polls state)
-  initializeConfig(args: { usdcMint: PublicKey }): Promise<{ signature: string; configPda: PublicKey }>;
+  initializeConfig(args: { usdcMint: PublicKey }, opts?: WriteOptions): Promise<{ signature: string; configPda: PublicKey }>;
   createInvoice(args: {
     invoiceId: bigint;
     amountDue: bigint;
     expiresAt: bigint;
     memo: string | Uint8Array;
-  }): Promise<{ signature: string; invoicePda: PublicKey }>;
-  payInvoice(args: { invoicePda: PublicKey; amount: bigint; expectedAmountDue: bigint }): Promise<{ signature: string }>;
-  merchantClaim(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
-  refundOverpayment(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
-  expireInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
-  recoverUnattributed(args: { invoicePda: PublicKey; destinationAta: PublicKey }): Promise<{ signature: string }>;
-  closeInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
+  }, opts?: WriteOptions): Promise<{ signature: string; invoicePda: PublicKey }>;
+  payInvoice(args: { invoicePda: PublicKey; amount: bigint; expectedAmountDue: bigint }, opts?: WriteOptions): Promise<{ signature: string }>;
+  merchantClaim(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }>;
+  refundOverpayment(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }>;
+  expireInvoice(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }>;
+  recoverUnattributed(args: { invoicePda: PublicKey; destinationAta: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }>;
+  closeInvoice(args: { invoicePda: PublicKey }, opts?: WriteOptions): Promise<{ signature: string }>;
 
   // State helpers
   waitForInvoiceState(

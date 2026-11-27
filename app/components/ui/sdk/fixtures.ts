@@ -8,7 +8,7 @@ export const MOCK_PAYER = new PublicKey('9mKq3xVdR7pLzB2nWf5sHa8yTj4cEu6Qo1iGvXb
 export const MOCK_PROGRAM = new PublicKey(MOCK_PROGRAM_ID);
 export const MOCK_MINT = new PublicKey(MOCK_USDC_MINT);
 
-export type FixtureLabel = 'open' | 'paid' | 'overpaid' | 'claimed' | 'expired' | 'expiring';
+export type FixtureLabel = 'open' | 'paid' | 'overpaid' | 'claimed' | 'expired' | 'expiring' | 'closed';
 
 export type FixtureSpec = {
   label: FixtureLabel;
@@ -20,7 +20,7 @@ export type FixtureSpec = {
   paidAmount?: bigint;
   refundedExcess?: bigint;
   claimed?: boolean;
-  status: 0 | 1 | 2;
+  status: 0 | 1 | 2 | 3;
   expiresOffsetSec: number;
   createdAt: bigint;
 };
@@ -108,6 +108,18 @@ export const fixtureSpecs: Record<FixtureLabel, FixtureSpec> = {
     expiresOffsetSec: -3600,
     createdAt: NOW - 2n * DAY,
   }),
+  closed: spec({
+    label: 'closed',
+    invoiceId: 1007n,
+    amountDue: 50_000_000n,
+    memo: 'Closed after settlement',
+    status: 3,
+    payer: MOCK_PAYER,
+    paidAmount: 50_000_000n,
+    claimed: true,
+    expiresOffsetSec: -Number(DAY),
+    createdAt: NOW - 4n * DAY,
+  }),
 };
 
 export const MOCK_FIXTURES = fixtureSpecs;
@@ -119,6 +131,7 @@ export const FIXTURE_LABELS: FixtureLabel[] = [
   'claimed',
   'expired',
   'expiring',
+  'closed',
 ];
 
 export function fixturePda(label: FixtureLabel): string {

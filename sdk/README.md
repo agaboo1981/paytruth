@@ -192,6 +192,88 @@ the exact validator error and remains gated by `PAYTRUTH_LOCALNET=1`.
 Synthetic transaction fixtures in `tests/fixtures/tx/` are generated from the
 real IDL by `pnpm gen:fixtures` and include `failed-invoice-mismatch`.
 
+## Devnet demo runner
+
+`sdk/scripts/devnet/demo.ts` drives the seven TEST-PLAN §E demo steps against
+the **deployed devnet program** with real signatures (no mocked success). It
+sends nothing in `--check` mode. It refuses any mainnet URL and aborts unless
+the cluster genesis hash is devnet (`EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG`).
+Pure logic lives in `sdk/scripts/devnet/lib.ts` and is unit-tested with a mocked
+`Connection` (`tests/unit/devnet-runner.test.ts`).
+
+It never reads or prints secret key bytes — only public keys. It never sends a
+transaction during unit tests; the runner only touches the network when you run
+it yourself.
+
+### Configuration (no hardcoded ids)
+
+| Env var | Purpose |
+|---|---|
+| `PAYTRUTH_DEVNET_RPC` | RPC endpoint; default `https://api.devnet.solana.com`. **Refused if it contains `mainnet`.** |
+| `PAYTRUTH_PROGRAM_ID` | Override the program id (else parsed from `programs/DEPLOYMENTS.md`). |
+| `PAYTRUTH_CONFIG_PDA` | Override the config PDA (else parsed from `DEPLOYMENTS.md`). |
+| `PAYTRUTH_USDC_MINT` | Override the USDC mint (else parsed from `DEPLOYMENTS.md`). |
+| `PAYTRUTH_MERCHANT_KEYPAIR` | Path to the merchant `solana-keygen` JSON. **No default.** |
+| `PAYTRUTH_PAYER_KEYPAIR` | Path to the payer `solana-keygen` JSON. **No default.** |
+| `STEP2_DUE` | Step 2 amount due, USDC base units (6 decimals). Default `1000000` (1.00). |
+| `STEP5_DUE` | Step 5 amount due. Default `1000000`. |
+| `STEP5_PAY` | Step 5 paid amount (overpay). Default `1500000` (1.50). |
+| `STEP6_DUE` | Step 6 amount due. Default `1000000`. |
+
+Program id / config PDA / USDC mint default to the `devnet` row of
+`programs/DEPLOYMENTS.md`, resolved at runtime relative to the script's own
+location. Keypair paths that resolve **inside the git repo** are refused.
+
+### Sanity checks (before any step)
+
+Program account exists and is executable; `getConfigPda(programId) ==` the
+recorded config PDA; on-chain `Config.usdc_mint ==` the mint; the mint account
+is owned by the classic SPL Token program with decimals `6`. Any mismatch aborts
+with a clear message.
+
+### Commands
+
+```bash
+pnpm devnet:check                       # = tsx scripts/devnet/demo.ts --check
+pnpm devnet:demo                        # = tsx scripts/devnet/demo.ts
+pnpm devnet:demo -- --step 5            # run only step 5
+pnpm devnet:demo -- --from 4            # run steps 4..7
+pnpm devnet:demo -- --wait-usdc 600     # poll payer USDC every 10s up to 600s
+```
+
+`--check` sends no transactions. It prints the resolved program/config/mint, the
+sanity results, and a table of role / pubkey / SOL / USDC / required SOL /
+required USDC / OK or NEEDS FUNDING. It **exits 0 even when funding is missing**
+(and says so). Use it to decide how much to fund before a live run.
+
+`--wait-usdc SEC` applies before each step that needs USDC (2, 4, 5, 6): if the
+payer's balance is short, the runner polls every 10s up to `SEC` seconds, then
+aborts with the exact amount needed if it never arrives.
+
+### Funding needs
+
+- **USDC (payer peak):** `STEP2_DUE + STEP5_PAY` = **2.50 USDC** by default.
+  Step 4 (duplicate) and step 6 (expired) are rejected by the program *before*
+  any transfer, so they need no extra USDC — only the payer's ATA must exist.
+  The merchant needs **0 USDC**.
+- **SOL:** merchant **>= 0.05 SOL**, payer **>= 0.01 SOL** (rent for the invoice
+  and escrow ATAs, the merchant ATA, and fees).
+
+### What each step asserts
+
+1. Merchant creates invoice A (`STEP2_DUE`, expires in 1h) → **Open** on-chain, escrow ATA exists with balance 0.
+2. Payer pays A exact (`expectedAmountDue` from the fetched invoice) → **Paid**, `paid_amount == due`, payer recorded, escrow balance `== due`.
+3. Merchant claims A → **claimed** (waits for **finalized**), merchant USDC increased by `due`, escrow 0.
+4. Payer attempts a duplicate payment via `buildPayInvoiceIx` sent with `sendRawTransaction({ skipPreflight: true })` so the failure is **recorded on-chain**; read back with `getTransaction` and assert `meta.err` maps to **DuplicatePayment**; invoice state and payer balance unchanged.
+5. New invoice B (`STEP5_DUE`); payer pays `STEP5_PAY` → **Paid** with excess; `refundOverpayment` (permissionless; payer is the caller) → `refunded_excess == excess` and payer balance `== before - STEP5_DUE`; merchant claims B so B is clean.
+6. New invoice C expiring in 30s; wait until cluster block time passes `expires_at`; payer pay with `skipPreflight: true` fails on-chain (**InvoiceExpired** via `getTransaction` + `mapError`); `expireInvoice` → **Expired**; merchant `closeInvoice` → **Closed** (account remains, escrow ATA closed).
+7. An independent `PaytruthClient` with **no wallet** fetches A, B, C (status, amounts, claimed, refundedExcess) and escrow balances at **finalized**, and prints the `/verify/<invoicePda>` paths.
+
+Every transaction is recorded (step, label, signature, explorer link, ok /
+expected-failure-with-error-name) into `sdk/.devnet-runs/<ISO>.json` and
+`<ISO>.md` (gitignored). The summary prints times in Africa/Lagos (WAT). The
+runner exits non-zero if any assertion fails.
+
 ## Spec discrepancy
 
 `docs/PROGRAM-SPEC.md` states the Invoice `InitSpace` is `203` (formula
