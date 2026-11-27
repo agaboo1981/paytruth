@@ -1,0 +1,38 @@
+# Anchor / Rust
+.anchor
+.DS_Store
+target
+**/*.rs.bk
+test-ledger
+.surfpool
+.yarn
+
+# JS
+node_modules
+dist
+build
+.next
+out
+coverage
+tsconfig.tsbuildinfo
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Keypairs — never commit
+keys/**/*.json
+keys/*.json
+**/*-keypair.json
+**/id.json
+*.pem
+
+# Editor
+.idea
+.vscode
+*.swp
+
+# Local agent/build scratch
+.ui-prompts/
+app/.ui-prompts/

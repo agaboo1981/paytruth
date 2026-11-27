@@ -1,0 +1,11 @@
+{
+  "name": "paytruth",
+  "description": "On-chain USDC invoice settlement on Solana. Early hackathon build — not audited.",
+  "project_url": "https://github.com/agaboo1981/paytruth",
+  "source_code": "https://github.com/agaboo1981/paytruth",
+  "contacts": [
+    "url:https://github.com/agaboo1981/paytruth/issues"
+  ],
+  "preferred_languages": ["en"],
+  "version": "0.1.0"
+}

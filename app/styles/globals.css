@@ -1,0 +1,7 @@
+@import "./tokens.css";
+@import "./wallet-adapter.css";
+@import "./kit.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

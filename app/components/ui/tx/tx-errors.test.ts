@@ -1,0 +1,166 @@
+import { describe, expect, it } from 'vitest';
+
+import { lookupProgramError, lookupProgramErrorByName, mapTxError, PROGRAM_ERRORS } from './tx-errors';
+
+describe('PROGRAM_ERRORS map', () => {
+  it('covers every code from 6000 to 6021', () => {
+    for (let code = 6000; code <= 6021; code += 1) {
+      expect(PROGRAM_ERRORS[code], `missing code ${code}`).toBeDefined();
+      expect(PROGRAM_ERRORS[code].name.length).toBeGreaterThan(0);
+      expect(PROGRAM_ERRORS[code].message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('returns null above the mapped range', () => {
+    expect(lookupProgramError(6100)).toBeNull();
+  });
+});
+
+describe('mapTxError program codes', () => {
+  it('maps Error Code name to a plain sentence and keeps the name as code', () => {
+    expect(
+      mapTxError(new Error('AnchorError. Error Code: DuplicatePayment. Error Number: 6001. custom program error: 0x1771')),
+    ).toEqual({
+      phase: 'failed',
+      error: {
+        code: 'DuplicatePayment',
+        message: 'This invoice is already paid. You were not charged again.',
+        raw: 'AnchorError. Error Code: DuplicatePayment. Error Number: 6001. custom program error: 0x1771',
+      },
+    });
+  });
+
+  it('maps hex 0x1770 (6000) to Underpayment when no name present', () => {
+    expect(
+      mapTxError(new Error('Program failed: custom program error: 0x1770')),
+    ).toEqual({
+      phase: 'failed',
+      error: {
+        code: 'Underpayment',
+        message: "That's less than the amount due. Nothing was sent.",
+        raw: 'Program failed: custom program error: 0x1770',
+      },
+    });
+  });
+
+  it('maps hex 0x1773 (6003) to InvoiceExpired', () => {
+    const result = mapTxError(new Error('custom program error: 0x1773'));
+    expect(result.error.code).toBe('InvoiceExpired');
+  });
+
+  it('maps 0x1778 (6008) to NotExpired', () => {
+    const result = mapTxError(new Error('custom program error: 0x1778'));
+    expect(result.error.code).toBe('NotExpired');
+  });
+
+  it('maps VaultNotEmpty (0x1780 / 6016)', () => {
+    const result = mapTxError(new Error('custom program error: 0x1780'));
+    expect(result.error.code).toBe('VaultNotEmpty');
+    expect(lookupProgramErrorByName('VaultNotEmpty')?.code).toBe(6016);
+  });
+
+  it('maps every 6000-6021 hex code to its name', () => {
+    for (let code = 6000; code <= 6021; code += 1) {
+      const hex = code.toString(16);
+      const result = mapTxError(new Error(`error sending transaction: custom program error: 0x${hex}`));
+      expect(result.error.code, `code ${code}`).toBe(PROGRAM_ERRORS[code].name);
+    }
+  });
+
+  it('maps simulated 0x1771 with generic simulation text to DuplicatePayment', () => {
+    const result = mapTxError(new Error('Simulation failed. custom program error: 0x1771'));
+    expect(result.error.code).toBe('DuplicatePayment');
+  });
+});
+
+describe('mapTxError core cases', () => {
+  it('maps a plain cancellation message to rejected', () => {
+    expect(mapTxError(new Error('User rejected the request'))).toEqual({
+      phase: 'rejected',
+      error: {
+        code: 'USER_REJECTED',
+        message: 'You cancelled in your wallet. Nothing was sent and no money moved.',
+        raw: 'User rejected the request',
+      },
+    });
+  });
+
+  it('maps WalletSignTransactionError to rejected', () => {
+    expect(mapTxError({ name: 'WalletSignTransactionError', message: 'Signing cancelled' })).toEqual({
+      phase: 'rejected',
+      error: {
+        code: 'USER_REJECTED',
+        message: 'You cancelled in your wallet. Nothing was sent and no money moved.',
+        raw: 'Signing cancelled',
+      },
+    });
+  });
+
+  it('maps InsufficientFunds to a friendly SOL balance message', () => {
+    expect(mapTxError({ name: 'InsufficientFunds', message: 'insufficient lamports' })).toEqual({
+      phase: 'failed',
+      error: {
+        code: 'INSUFFICIENT_FUNDS',
+        message: 'Not enough SOL to cover this transaction and fees.',
+        raw: 'insufficient lamports',
+      },
+    });
+  });
+
+  it('keeps a custom program error 0x1 as a program error', () => {
+    expect(
+      mapTxError(
+        new Error(
+          'Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1',
+        ),
+      ),
+    ).toEqual({
+      phase: 'failed',
+      error: {
+        code: 'PROGRAM_ERROR',
+        message: 'Simulation failed (program error 0x1).',
+        raw: 'Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1',
+      },
+    });
+  });
+
+  it('maps BlockhashNotFound to expired', () => {
+    expect(mapTxError({ name: 'BlockhashNotFound', message: 'Blockhash not found' })).toEqual({
+      phase: 'expired',
+      error: {
+        code: 'BLOCKHASH_EXPIRED',
+        message: "The network didn't pick this up in time. No money moved — it's safe to try again.",
+        raw: 'Blockhash not found',
+      },
+    });
+  });
+
+  it('maps a block height error to expired', () => {
+    expect(mapTxError(new Error('Transaction failed: block height exceeded'))).toEqual({
+      phase: 'expired',
+      error: {
+        code: 'BLOCKHASH_EXPIRED',
+        message: "The network didn't pick this up in time. No money moved — it's safe to try again.",
+        raw: 'Transaction failed: block height exceeded',
+      },
+    });
+  });
+
+  it('maps unknown objects to a generic failure with raw text', () => {
+    expect(mapTxError({ code: -32000, message: 'RPC request failed' })).toEqual({
+      phase: 'failed',
+      error: {
+        code: 'UNKNOWN',
+        message: 'Transaction failed. Try again.',
+        raw: 'RPC request failed',
+      },
+    });
+  });
+
+  it('handles null without throwing', () => {
+    expect(mapTxError(null)).toEqual({
+      phase: 'failed',
+      error: { code: 'UNKNOWN', message: 'Transaction failed. Try again.' },
+    });
+  });
+});
