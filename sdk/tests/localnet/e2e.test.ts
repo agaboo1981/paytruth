@@ -19,6 +19,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
@@ -35,7 +36,29 @@ import type { PaytruthWallet } from '../../src/send';
 import { InvoiceStatus } from '../../src/types';
 
 const GATED = process.env.PAYTRUTH_LOCALNET === '1';
-const RPC = process.env.PAYTRUTH_LOCALNET_RPC ?? 'http://127.0.0.1:8899';
+const RPC_PORT = Number(process.env.PAYTRUTH_LOCALNET_PORT ?? '8899');
+const FAUCET_PORT = RPC_PORT + 1001; // default pair 8899/9900
+const RPC = `http://127.0.0.1:${RPC_PORT}`;
+
+/** Refuse to run against a validator we did not start (shared box: other bots use 8899). */
+async function assertPortFree(): Promise<void> {
+  let answered = false;
+  try {
+    const res = await fetch(RPC, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getHealth' }),
+    });
+    answered = res.status > 0;
+  } catch {
+    answered = false;
+  }
+  if (answered) {
+    throw new Error(
+      `Something is already serving RPC on ${RPC} (another validator?). Refusing to run against a validator this test did not start; set PAYTRUTH_LOCALNET_PORT to a free port.`,
+    );
+  }
+}
 const PROGRAM_ID = new PublicKey('D8dnG9j1zSwwaJLyAvp794MJqEXptdiVS74gh6fNLQ7H');
 const here = dirname(fileURLToPath(import.meta.url));
 const sdkRoot = resolve(here, '..', '..');
@@ -149,6 +172,7 @@ async function failedName(run: () => Promise<unknown>): Promise<string | undefin
 describe.skipIf(!GATED)('localnet E2E (§E steps 1-7)', () => {
   beforeAll(async () => {
     if (!existsSync(PROGRAM_SO)) throw new Error(`program binary not found: ${PROGRAM_SO}`);
+    await assertPortFree();
     validator = spawn(
       'solana-test-validator',
       [
@@ -160,7 +184,9 @@ describe.skipIf(!GATED)('localnet E2E (§E steps 1-7)', () => {
         PROGRAM_ID.toBase58(),
         PROGRAM_SO,
         '--rpc-port',
-        '8899',
+        String(RPC_PORT),
+        '--faucet-port',
+        String(FAUCET_PORT),
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
@@ -442,5 +468,68 @@ describe.skipIf(!GATED)('localnet E2E (§E steps 1-7)', () => {
     const balance = await observer.fetchEscrowBalance(invoicePda, mint);
     expect(inv.status).toBe(InvoiceStatus.Paid);
     expect(balance).toBe(1_000_000n);
+  }, 120_000);
+
+  it('wallet refreshes blockhash and adds a priority fee; tx still lands', async () => {
+    const merchantClient = new PaytruthClient({
+      connection,
+      wallet: keypairWallet(merchant),
+      programId: PROGRAM_ID,
+    });
+    const observer = new PaytruthClient({ connection, programId: PROGRAM_ID });
+    const { invoicePda } = await merchantClient.createInvoice({
+      invoiceId: 10n,
+      amountDue: 1_000_000n,
+      expiresAt: (await clusterNow(connection)) + 3_600n,
+      memo: 'refresh-and-priority-fee',
+    });
+
+    let builtBlockhash: string | undefined;
+    let signedBlockhash: string | undefined;
+
+    const refreshingWallet: PaytruthWallet = {
+      publicKey: payer.publicKey,
+      async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
+        const t = tx as Transaction;
+        builtBlockhash = t.recentBlockhash;
+        // Wait until the cluster hands back a different blockhash (poll every 400ms, max 10s).
+        const started = Date.now();
+        for (;;) {
+          const { blockhash } = await connection.getLatestBlockhash('confirmed');
+          if (blockhash !== t.recentBlockhash) {
+            t.recentBlockhash = blockhash;
+            break;
+          }
+          if (Date.now() - started > 10_000) throw new Error('blockhash never refreshed locally');
+          await sleep(400);
+        }
+        signedBlockhash = t.recentBlockhash;
+        // Wallet adds a priority fee.
+        t.instructions.unshift(
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
+        );
+        t.partialSign(payer);
+        return tx;
+      },
+    };
+
+    const payerClient = new PaytruthClient({ connection, wallet: refreshingWallet, programId: PROGRAM_ID });
+    await payerClient.payInvoice({
+      invoicePda,
+      amount: 1_000_000n,
+      expectedAmountDue: (await observer.fetchInvoice(invoicePda)).amountDue,
+    });
+
+    expect(builtBlockhash).toBeDefined();
+    expect(signedBlockhash).toBeDefined();
+    expect(signedBlockhash).not.toBe(builtBlockhash);
+
+    const inv = await observer.waitForInvoiceState(invoicePda, (i) => i.status === InvoiceStatus.Paid, {
+      commitment: 'confirmed',
+      timeoutMs: 30_000,
+    });
+    expect(inv.status).toBe(InvoiceStatus.Paid);
+    expect(inv.paidAmount).toBe(1_000_000n);
+    expect(inv.payer.equals(payer.publicKey)).toBe(true);
   }, 120_000);
 });

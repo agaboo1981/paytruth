@@ -92,7 +92,11 @@ export {
 export {
   signAndSend,
   verifySignedTransaction,
+  confirmBySignatureStatus,
   type PaytruthWallet,
+  type SendAttempt,
+  type SignAndSendOptions,
+  type ConfirmBySignatureStatusOptions,
   type WriteStage,
   type WriteStageInfo,
   type WriteOptions,

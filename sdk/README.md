@@ -87,24 +87,54 @@ blockhash), calls **only** `wallet.signTransaction` (never the wallet's
 `sendTransaction`), then `verifySignedTransaction` checks the returned bytes:
 
 - fee payer unchanged;
-- every expected instruction present, same relative order, identical
-  `programId`, keys (`pubkey`, `isSigner`, `isWritable`) and `data`;
-- extra instructions allowed **only** from the ComputeBudget program (wallets add
-  priority fees); anything else throws `WalletModifiedTransactionError`;
-- signatures valid (`verifySignatures()`).
+- the recent blockhash **may change** (wallets refresh it); that is accepted;
+- ComputeBudget instructions may be **added, removed or changed**, but only the
+  allowlisted kinds — `SetComputeUnitLimit` (`data[0] == 2`, length 5) and
+  `SetComputeUnitPrice` (`data[0] == 3`, length 9) — with **zero** account keys
+  and at most one of each. Any other ComputeBudget instruction (e.g.
+  `RequestHeapFrame = 1`, `SetLoadedAccountsDataSizeLimit = 4`, unknown, wrong
+  length, or carrying account keys) throws `WalletModifiedTransactionError`;
+- after removing the allowlisted ComputeBudget instructions from **both** sides,
+  the remaining instructions must be **exactly equal**: same count, same order,
+  each identical in `programId`, `data` bytes and ordered account metas
+  (`pubkey`, `isSigner`, `isWritable`). Any added/missing/reordered/changed
+  instruction — including an extra `SystemProgram` transfer or a prepended
+  `AdvanceNonceAccount` — throws;
+- the required signer set (fee payer + all `isSigner` keys) must be unchanged
+  (no added or removed signers), `verifySignatures()` must be true, and every
+  required signer must have a non-empty signature;
+- as defence in depth, the compiled signed message may not make any account
+  writable that is not writable in the compiled expected message.
 
-Only then does it `sendRawTransaction` and `confirmTransaction` at `confirmed`.
+The `signed`/`onSigned` callbacks receive the **real transaction signature**
+(bs58 of the fee payer signature), not the wallet public key.
+
+Only then does it `sendRawTransaction` and confirm. If the wallet kept our
+blockhash it uses `confirmTransaction({ signature, blockhash, lastValidBlockHeight })`
+at `confirmed`. If the wallet changed it, our `lastValidBlockHeight` no longer
+applies; `confirmBySignatureStatus` instead polls
+`getSignatureStatuses([sig])` (`searchTransactionHistory: false`) every ~500ms
+until the status reaches the requested commitment, throws on an on-chain `err`,
+gives up with a retryable error once `isBlockhashValid(signedBlockhash,
+{ commitment: 'processed' })` reports false, or after a bounded timeout
+(default 90s, overridable via `SignAndSendOptions.confirmTimeoutMs`).
 
 ## Idempotent writes (TEST-PLAN D1-D3)
 
-`PaytruthClient.writeWithRecovery` sends at `confirmed`. On send timeout /
-blockhash-exceeded / network error it **refetches the Invoice account** at
-`confirmed` then `finalized`. If the `landed` predicate holds, it returns
-`{ recovered: true }` without resubmitting. Only when the chain shows it did not
-land **and** the old blockhash has expired (`getBlockHeight > lastValidBlockHeight`)
-does it rebuild + re-sign + resend once. It never resubmits while the old
-blockhash is still valid. `waitForInvoiceState` polls the **account** (not the
-signature) at the requested commitment and throws `TxTimeoutError` on timeout.
+`PaytruthClient.writeWithRecovery` sends at `confirmed`. `signAndSend` records
+the signature and the blockhash the wallet **actually signed** into an optional
+`attempt` object before the send. On send timeout / blockhash-exceeded / network
+error, recovery **refetches the Invoice account** at `confirmed` then
+`finalized`. If the `landed` predicate holds, it returns `{ recovered: true }`
+without resubmitting. Only when the chain shows it did not land **and** the
+signed blockhash has expired does it rebuild + re-sign + resend once. Expiry is
+decided against the signed blockhash: if the wallet kept ours, compare
+`getBlockHeight('confirmed') > lastValidBlockHeight`; otherwise it asks
+`isBlockhashValid(signedBlockhash, { commitment: 'confirmed' })` (an RPC error is
+treated as *not* expired). It never resubmits while the signed blockhash may
+still be valid. `waitForInvoiceState` polls the **account** (not the signature)
+at the requested commitment and throws `TxTimeoutError` on timeout.
+
 
 ## Cluster guard
 
