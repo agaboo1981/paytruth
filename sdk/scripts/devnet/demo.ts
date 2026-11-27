@@ -210,6 +210,13 @@ function keypairWallet(kp: Keypair): PaytruthWallet {
     publicKey: kp.publicKey,
     async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
       (tx as Transaction).partialSign(kp);
+      // PAYTRUTH_DEVNET_WALLET_REBUILD=1 mimics Wallet Standard adapters, which
+      // return Transaction.from(signedBytes) (fee payer meta becomes writable).
+      if (process.env.PAYTRUTH_DEVNET_WALLET_REBUILD === '1') {
+        return Transaction.from(
+          (tx as Transaction).serialize({ requireAllSignatures: false, verifySignatures: false }),
+        ) as T;
+      }
       return tx;
     },
   };
@@ -835,6 +842,7 @@ async function main(): Promise<void> {
   console.log(`  RPC:      ${config.rpcUrl}`);
   console.log(`  merchant: ${merchant.publicKey.toBase58()}`);
   console.log(`  payer:    ${payer.publicKey.toBase58()}`);
+  if (env.PAYTRUTH_DEVNET_WALLET_REBUILD === '1') console.log('  wallet:   Transaction.from(bytes) rebuild ON (Wallet Standard path)');
 
   const conn = new Connection(config.rpcUrl, COMMITMENT);
   await assertDevnetGenesis(conn);
