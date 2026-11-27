@@ -106,7 +106,9 @@ export default function VerifyInvoicePage() {
     );
   }
 
-  if (view.loading) {
+  // Skeleton only on the first load: background refetches keep the page (and any
+  // in-flight transaction status) mounted.
+  if (view.loading && !view.invoice && !view.error) {
     return (
       <Container className="flex max-w-[720px] flex-col gap-4">
         <Skeleton className="h-32 w-full rounded-lg" />

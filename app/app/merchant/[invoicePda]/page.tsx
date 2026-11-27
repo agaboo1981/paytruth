@@ -5,7 +5,7 @@ import { InvoiceUnavailable } from '@/components/ui/invoice/load-error';
 import { PublicKey } from '@solana/web3.js';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { Address } from '@/components/ui/address';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,9 @@ import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
 import { parsePublicKey } from '@/components/ui/sdk/validate';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
+import { ExplorerLink } from '@/components/ui/explorer-link';
 import { TxStatus } from '@/components/ui/tx/tx-status';
+import { useLatch } from '@/components/ui/use-latch';
 import { useTxAction } from '@/components/ui/tx/use-tx-action';
 
 function ErrorCard({ title, body }: { title: string; body: string }) {
@@ -39,7 +41,7 @@ function ErrorCard({ title, body }: { title: string; body: string }) {
   );
 }
 
-function ClosedStateCard() {
+function ClosedStateCard({ signature }: { signature?: string }) {
   return (
     <Container>
       <div role="status" className="rounded-lg border border-border bg-surface p-6 shadow-panel">
@@ -51,6 +53,7 @@ function ClosedStateCard() {
           Nothing more can happen to this invoice. You can still verify the settled payment.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
+          {signature ? <ExplorerLink signature={signature}>Close transaction</ExplorerLink> : null}
           <Link href="/merchant/new" className="inline-flex min-h-11 items-center rounded-sm border border-[var(--accent)] px-4 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
             Create another invoice
           </Link>
@@ -108,13 +111,15 @@ export default function MerchantInvoicePage() {
   const invoicePda = parsePublicKey(raw);
   const { publicKey } = useWalletKey();
   const view = useInvoiceView(invoicePda);
-  const [closedLocally, setClosedLocally] = useState(false);
+  const [closedLocally, setClosedLocally] = useState<{ signature?: string } | null>(null);
 
   if (!invoicePda) {
     return <ErrorCard title="That address isn't valid" body="An invoice address must be a 32-byte base58 Solana address. Check the link and try again." />;
   }
 
-  if (view.loading) {
+  // Skeleton only on the first load: background refetches keep the page (and any
+  // in-flight transaction status) mounted.
+  if (view.loading && !view.invoice && !view.error) {
     return (
       <Container className="flex flex-col gap-4">
         <Skeleton className="h-32 w-full rounded-lg" />
@@ -124,7 +129,7 @@ export default function MerchantInvoicePage() {
     );
   }
 
-  if (closedLocally) return <ClosedStateCard />;
+  if (closedLocally) return <ClosedStateCard signature={closedLocally.signature} />;
 
   if (view.errorKind === 'unavailable') {
     return <InvoiceUnavailable message={view.error?.message} onRetry={view.refresh} />;
@@ -196,7 +201,7 @@ export default function MerchantInvoicePage() {
             finalized={view.finalized}
             closed={closedState}
             onRefresh={view.refresh}
-            onClosed={() => setClosedLocally(true)}
+            onClosed={(signature) => setClosedLocally({ signature })}
           />
         )}
       </section>
@@ -219,23 +224,32 @@ function ActionPanel({
   finalized: boolean;
   closed: boolean;
   onRefresh: () => void;
-  onClosed: () => void;
+  onClosed: (signature?: string) => void;
 }) {
   const [destination, setDestination] = useState('');
   const destinationAta = useMemo(() => parsePublicKey(destination), [destination]);
-  const closeTx = useTxAction(async (opts) => writeSdk.closeInvoice({ invoicePda }, opts), {
+  const closeSigRef = useRef<string | undefined>(undefined);
+  const showClaim = useLatch(derived.canClaim);
+  const showRefund = useLatch(derived.canRefund);
+  const showExpire = useLatch(derived.canExpire);
+  const doneNote = 'Done — this step is complete.';
+  const closeTx = useTxAction(async (opts) => {
+    const result = await writeSdk.closeInvoice({ invoicePda }, opts);
+    closeSigRef.current = result.signature;
+    return result;
+  }, {
     invoicePda,
     waitFor: (inv) => inv.status === InvoiceStatus.Closed,
     skipWaitFor: true,
     onConfirmed: () => {
-      onClosed();
+      onClosed(closeSigRef.current);
       onRefresh();
     },
   });
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      {derived.canClaim ? (
+      {showClaim ? (
         <ActionCard
           invoicePda={invoicePda}
           action={{
@@ -244,32 +258,35 @@ function ActionPanel({
             description: 'Move the amount due from escrow into your wallet.',
             note: finalized ? null : "Wait for 'Final' before handing over goods.",
             variant: 'primary',
+            disabledReason: derived.canClaim ? undefined : doneNote,
             send: async (opts) => writeSdk.merchantClaim({ invoicePda }, opts),
             waitFor: (inv) => inv.claimed,
           }}
         />
       ) : null}
 
-      {derived.canRefund ? (
+      {showRefund ? (
         <ActionCard
           invoicePda={invoicePda}
           action={{
             key: 'refund',
             label: 'Refund extra to customer',
             description: 'Send the overpayment back to the wallet that paid.',
+            disabledReason: derived.canRefund ? undefined : doneNote,
             send: async (opts) => writeSdk.refundOverpayment({ invoicePda }, opts),
             waitFor: (inv) => inv.refundedExcess > 0n,
           }}
         />
       ) : null}
 
-      {derived.canExpire ? (
+      {showExpire ? (
         <ActionCard
           invoicePda={invoicePda}
           action={{
             key: 'expire',
             label: 'Mark as expired',
             description: 'The expiry time has passed. Mark it expired so it can no longer be paid.',
+            disabledReason: derived.canExpire ? undefined : doneNote,
             send: async (opts) => writeSdk.expireInvoice({ invoicePda }, opts),
             waitFor: (inv) => inv.status === InvoiceStatus.Expired,
           }}

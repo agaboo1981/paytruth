@@ -110,14 +110,14 @@ export function derivedView(invoice: Invoice, nowSec: number, escrowBalance: big
     kind = 'expired';
   } else if (isOpen) {
     kind = 'open';
-  } else if (!invoice.claimed && excess > 0n) {
+  } else if (excess > 0n && invoice.refundedExcess === 0n) {
+    // Extra still held in escrow (claimed or not): the refund is the next step.
     kind = 'overpaid-refund-due';
+  } else if (!invoice.claimed && excess > 0n) {
+    // Extra refunded, amount due still waiting to be claimed.
+    kind = 'refunded';
   } else if (!invoice.claimed) {
     kind = 'paid';
-  } else if (excess > 0n && invoice.refundedExcess === 0n) {
-    kind = 'overpaid-refund-due';
-  } else if (excess > 0n) {
-    kind = 'refunded';
   } else {
     kind = 'claimed';
   }

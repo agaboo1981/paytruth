@@ -38,6 +38,11 @@ async function shot(page: Page, name: string) {
     [1280, 800],
   ] as const) {
     await page.setViewportSize({ width: w, height: h });
+    // Avoid fullPage artefacts (sticky header mid-page, focused skip link).
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
     await page.screenshot({ path: join(SHOTS, `${name}-devnet-${w}.png`), fullPage: true });
   }
 }
@@ -86,6 +91,7 @@ test.describe('devnet: full UI flow with test wallets', () => {
   let merchant: BrowserContext;
   let payer: BrowserContext;
   let funded = false;
+  let fundedSol = false;
   let reason = '';
 
   test.beforeAll(async ({ browser }) => {
@@ -100,8 +106,9 @@ test.describe('devnet: full UI flow with test wallets', () => {
     } catch {
       pUsdc = 0n;
     }
-    funded = mSol >= 50_000_000 && pSol >= 20_000_000 && pUsdc >= 2_500_000n;
-    reason = `merchant ${m.publicKey.toBase58()} SOL=${mSol / 1e9}; payer ${p.publicKey.toBase58()} SOL=${pSol / 1e9} USDC=${Number(pUsdc) / 1e6} (need merchant>=0.05 SOL, payer>=0.02 SOL and >=2.5 USDC)`;
+    fundedSol = mSol >= 30_000_000 && pSol >= 5_000_000;
+    funded = fundedSol && pUsdc >= 1_500_000n;
+    reason = `merchant ${m.publicKey.toBase58()} SOL=${mSol / 1e9}; payer ${p.publicKey.toBase58()} SOL=${pSol / 1e9} USDC=${Number(pUsdc) / 1e6} (need merchant>=0.03 SOL, payer>=0.005 SOL and >=1.5 USDC)`;
     record({ step: 'funding check', result: funded ? `funded: ${reason}` : `NOT FUNDED: ${reason}` });
     merchant = await browser.newContext({ baseURL: test.info().project.use.baseURL });
     payer = await browser.newContext({ baseURL: test.info().project.use.baseURL });
@@ -138,34 +145,59 @@ test.describe('devnet: full UI flow with test wallets', () => {
     return pda;
   }
 
-  test('create -> pay exact -> claim; duplicate pay blocked; verify', async () => {
+  test('create -> pay exact -> claim; duplicate pay blocked; verify; close', async () => {
     test.skip(!funded, `Test wallets not funded. ${reason}`);
     test.setTimeout(600_000);
-    const pda = await create('1', 'UI devnet A');
+    // Reuse an Open 1.00 USDC invoice already created by this UI (saves rent) when given.
+    const reuse = process.env.PAYTRUTH_UI_E2E_REUSE_A;
+    const pda = reuse ?? (await create('1', 'UI devnet A'));
 
+    // Set when the reused invoice was already paid + claimed by an earlier run (signatures recorded there).
+    const alreadyClaimed = process.env.PAYTRUTH_UI_E2E_REUSE_A_STATE === 'claimed';
     const pp = await payer.newPage();
+    const mp = await merchant.newPage();
+    if (!alreadyClaimed) {
     await pp.goto(`/pay/${pda}`);
     await shot(pp, 'pay-open');
     await pp.getByRole('button', { name: /^Pay 1\.00 USDC$/ }).click();
     await expect(pp.locator('main').getByRole('status').filter({ hasText: 'Check your wallet' })).toBeVisible();
     await waitFinal(pp);
     record({ step: 'pay exact A', pda, signature: await lastSignature(pp), result: 'ok' });
+    }
 
     await pp.goto(`/pay/${pda}`);
     await expect(pp.getByRole('heading', { name: 'This invoice is already paid' })).toBeVisible({ timeout: 60_000 });
     await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
     record({ step: 'duplicate pay A blocked in UI (no pay button)', pda, result: 'ok' });
 
-    const mp = await merchant.newPage();
+    if (!alreadyClaimed) {
     await mp.goto(`/merchant/${pda}`);
     await shot(mp, 'merchant-paid');
     await mp.getByRole('button', { name: 'Claim payment' }).click();
     await waitFinal(mp);
     record({ step: 'claim A', pda, signature: await lastSignature(mp), result: 'ok' });
+    await shot(mp, 'merchant-claimed');
+    } else {
+    await mp.goto(`/merchant/${pda}`);
+    await expect(mp.getByRole('heading', { name: 'Paid and claimed' })).toBeVisible({ timeout: 90_000 });
+    await shot(mp, 'merchant-claimed');
+    }
 
     await pp.goto(`/verify/${pda}`);
     await expect(pp.getByRole('heading', { name: /Paid & claimed/ })).toBeVisible({ timeout: 90_000 });
     await shot(pp, 'verify-ui-a');
+
+    // Paid + claimed is terminal: close it so the rent returns to the merchant.
+    await mp.goto(`/merchant/${pda}`);
+    await mp.getByRole('button', { name: 'Close invoice' }).click();
+    await expect(mp.locator('main')).toContainText('Closed — the invoice account was removed', { timeout: 150_000 });
+    record({ step: 'close A (after claim)', pda, signature: await lastSignature(mp), result: 'ok' });
+    await pp.goto(`/pay/${pda}`);
+    await expect(pp.locator('main')).toContainText(/closed by the merchant/i, { timeout: 90_000 });
+    await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
+    record({ step: 'pay-after-close A shows closed copy, no pay button', pda, result: 'ok' });
+    await pp.goto(`/verify/${pda}`);
+    await expect(pp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });
     await pp.close();
     await mp.close();
   });
@@ -187,6 +219,7 @@ test.describe('devnet: full UI flow with test wallets', () => {
     await pp.getByRole('button', { name: /^Refund 0\.50 USDC$/ }).click();
     await waitFinal(pp);
     record({ step: 'refund B excess', pda, signature: await lastSignature(pp), result: 'ok' });
+    await shot(pp, 'pay-refunded');
     await pp.goto(`/verify/${pda}`);
     await expect(pp.locator('main')).toContainText('0.50 USDC', { timeout: 90_000 });
     await shot(pp, 'verify-ui-b');
@@ -194,12 +227,20 @@ test.describe('devnet: full UI flow with test wallets', () => {
   });
 
   test('short expiry -> expire -> close -> closed copy on pay/verify', async () => {
-    test.skip(!funded, `Test wallets not funded. ${reason}`);
+    // Needs SOL only (no USDC moves).
+    test.skip(!fundedSol, `Test wallets not funded. ${reason}`);
     test.setTimeout(600_000);
-    const expiry = new Date(Date.now() + 2 * 60_000);
-    const pda = await create('1', 'UI devnet C', expiry);
-    const wait = expiry.getTime() - Date.now() + 15_000;
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    // Reuse an invoice an earlier run already created and expired (signatures recorded there).
+    const reuseC = process.env.PAYTRUTH_UI_E2E_REUSE_C_EXPIRED;
+    let pda: string;
+    if (reuseC) {
+      pda = reuseC;
+    } else {
+      const expiry = new Date(Date.now() + 2 * 60_000);
+      pda = await create('1', 'UI devnet C', expiry);
+      const wait = expiry.getTime() - Date.now() + 15_000;
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    }
 
     const pp = await payer.newPage();
     await pp.goto(`/pay/${pda}`);
@@ -209,13 +250,17 @@ test.describe('devnet: full UI flow with test wallets', () => {
 
     const mp = await merchant.newPage();
     await mp.goto(`/merchant/${pda}`);
-    await mp.getByRole('button', { name: 'Mark as expired' }).click();
-    await waitFinal(mp);
-    record({ step: 'expire C', pda, signature: await lastSignature(mp), result: 'ok' });
+    if (!reuseC) {
+      await mp.getByRole('button', { name: 'Mark as expired' }).click();
+      await waitFinal(mp);
+      record({ step: 'expire C', pda, signature: await lastSignature(mp), result: 'ok' });
+    } else {
+      await expect(mp.getByRole('heading', { name: 'Expired', level: 1 })).toBeVisible({ timeout: 90_000 });
+    }
+    await shot(mp, 'merchant-expired');
     await mp.goto(`/merchant/${pda}`);
     await mp.getByRole('button', { name: 'Close invoice' }).click();
-    await waitFinal(mp);
-    await expect(mp.locator('main')).toContainText('Closed — the invoice account was removed', { timeout: 60_000 });
+    await expect(mp.locator('main')).toContainText('Closed — the invoice account was removed', { timeout: 150_000 });
     record({ step: 'close C', pda, signature: await lastSignature(mp), result: 'ok' });
     await mp.goto(`/merchant/${pda}`);
     await expect(mp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });
@@ -224,6 +269,8 @@ test.describe('devnet: full UI flow with test wallets', () => {
     await pp.goto(`/pay/${pda}`);
     await expect(pp.locator('main')).toContainText(/closed by the merchant/i, { timeout: 90_000 });
     await expect(pp.getByRole('button', { name: /^Pay / })).toHaveCount(0);
+    await shot(pp, 'pay-after-close');
+    record({ step: 'pay-after-close C shows closed copy, no pay button', pda, result: 'ok' });
     await pp.goto(`/verify/${pda}`);
     await expect(pp.getByRole('heading', { name: 'Closed' })).toBeVisible({ timeout: 90_000 });
     await shot(pp, 'verify-ui-c');

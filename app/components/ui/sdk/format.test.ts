@@ -175,6 +175,17 @@ describe('derivedView flag truth table', () => {
     expect(view.canClose).toBe(false);
   });
 
+  it('paid over, refunded, not claimed: refunded (ready to claim)', () => {
+    const view = derivedView(
+      makeInvoice({ status: InvoiceStatus.Paid, paidAmount: 30n * U, claimed: false, refundedExcess: 5n * U }),
+      NOW,
+      25n * U,
+    );
+    expect(view.kind).toBe('refunded');
+    expect(view.canClaim).toBe(true);
+    expect(view.canRefund).toBe(false);
+  });
+
   it('paid over, claimed, refunded, vault empty: close', () => {
     const view = derivedView(
       makeInvoice({
@@ -186,7 +197,7 @@ describe('derivedView flag truth table', () => {
       NOW,
       0n,
     );
-    expect(view.kind).toBe('refunded');
+    expect(view.kind).toBe('claimed');
     expect(view.canRefund).toBe(false);
     expect(view.canRecover).toBe(false);
     expect(view.canClose).toBe(true);

@@ -106,7 +106,9 @@ export default function PayInvoicePage() {
     return <ErrorCard title="That address isn't valid" body="An invoice address must be a 32-byte base58 Solana address. Ask the merchant for a new link." />;
   }
 
-  if (view.loading) {
+  // Skeleton only on the first load: background refetches keep the page (and any
+  // in-flight transaction status) mounted.
+  if (view.loading && !view.invoice && !view.error) {
     return (
       <Container className="flex flex-col gap-4">
         <Skeleton className="h-64 w-full rounded-lg" />
@@ -162,19 +164,32 @@ export default function PayInvoicePage() {
 
   // Paid already (or just paid) and no extra outstanding: show paid state, no pay button.
   if (invoice.status === InvoiceStatus.Paid && !afterPayConfirmed) {
-    if (derived.excess > 0n && invoice.refundedExcess === 0n) {
+    if (derived.excess > 0n && (invoice.refundedExcess === 0n || refundTx.state.status !== 'idle')) {
       return (
         <Container className="flex max-w-[640px] flex-col gap-5">
           <div className="rounded-lg border-l-4 border-[var(--warning)] bg-surface p-6 shadow-panel">
-            <Badge variant="warning">Extra payment</Badge>
-            <h1 className="mt-3 font-display text-headline font-bold text-fg">You paid {formatUsdc(derived.excess)} extra</h1>
-            <p className="mt-2 text-body text-muted">
-              Get it back. The refund always goes to the wallet that paid, so it&apos;s safe for anyone to trigger.
-            </p>
+            {refundTx.state.status === 'confirmed' || invoice.refundedExcess > 0n ? (
+              <>
+                <Badge variant="success">Extra refunded</Badge>
+                <h1 className="mt-3 font-display text-headline font-bold text-fg">Your extra {formatUsdc(derived.excess)} was refunded</h1>
+                <p className="mt-2 text-body text-muted">It went back to the wallet that paid. Nothing else to do.</p>
+              </>
+            ) : (
+              <>
+                <Badge variant="warning">Extra payment</Badge>
+                <h1 className="mt-3 font-display text-headline font-bold text-fg">You paid {formatUsdc(derived.excess)} extra</h1>
+                <p className="mt-2 text-body text-muted">
+                  Get it back. The refund always goes to the wallet that paid, so it&apos;s safe for anyone to trigger.
+                </p>
+              </>
+            )}
             {refundTx.state.status === 'confirmed' ? (
-              <p className="mt-4 rounded-sm border border-[var(--success)] p-3 text-small font-semibold text-success" role="status">
-                Refunded {formatUsdc(derived.excess)} to your wallet.
-              </p>
+              <div className="mt-4 flex flex-col gap-3">
+                <p className="rounded-sm border border-[var(--success)] p-3 text-small font-semibold text-success">
+                  Refunded {formatUsdc(derived.excess)} to your wallet.
+                </p>
+                <TxStatus state={refundTx.state} />
+              </div>
             ) : (
               <div className="mt-4 flex flex-col gap-3">
                 <Button variant="primary" size="lg" onClick={refundTx.run} loading={refundTx.isInFlight}>
