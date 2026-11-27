@@ -15,7 +15,7 @@ import { Field, formatDate, Money } from '@/components/ui/invoice/fields';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Skeleton } from '@/components/ui/skeleton';
 import { derivedView, formatUsdc, parseUsdc } from '@/components/ui/sdk/format';
-import { stagedWrites } from '@/components/ui/sdk/staged-writes';
+import { sdk as writeSdk } from '@/components/ui/sdk/client';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
 import { decodeMemo } from '@/components/ui/sdk/format';
@@ -80,7 +80,7 @@ export default function PayInvoicePage() {
       const amount = parseUsdc(customAmount) ?? view.invoice?.amountDue ?? 0n;
       if (amount <= 0n) throw new Error('Enter a valid amount.');
       if (!view.invoice) throw new Error('Invoice not loaded.');
-      return stagedWrites.payInvoice(
+      return writeSdk.payInvoice(
         { invoicePda, amount, expectedAmountDue: view.invoice.amountDue },
         opts,
       );
@@ -94,7 +94,7 @@ export default function PayInvoicePage() {
   const refundTx = useTxAction(
     async (opts) => {
       if (!invoicePda) throw new Error('Invalid invoice address.');
-      return stagedWrites.refundOverpayment({ invoicePda }, opts);
+      return writeSdk.refundOverpayment({ invoicePda }, opts);
     },
     {
       invoicePda: invoicePda ?? undefined,

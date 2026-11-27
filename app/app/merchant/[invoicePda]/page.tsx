@@ -17,7 +17,7 @@ import { StatusHero } from '@/components/ui/invoice/status-hero';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Skeleton } from '@/components/ui/skeleton';
 import { derivedView } from '@/components/ui/sdk/format';
-import { stagedWrites } from '@/components/ui/sdk/staged-writes';
+import { sdk as writeSdk } from '@/components/ui/sdk/client';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
 import { parsePublicKey } from '@/components/ui/sdk/validate';
@@ -223,7 +223,7 @@ function ActionPanel({
 }) {
   const [destination, setDestination] = useState('');
   const destinationAta = useMemo(() => parsePublicKey(destination), [destination]);
-  const closeTx = useTxAction(async (opts) => stagedWrites.closeInvoice({ invoicePda }, opts), {
+  const closeTx = useTxAction(async (opts) => writeSdk.closeInvoice({ invoicePda }, opts), {
     invoicePda,
     waitFor: (inv) => inv.status === InvoiceStatus.Closed,
     skipWaitFor: true,
@@ -244,7 +244,7 @@ function ActionPanel({
             description: 'Move the amount due from escrow into your wallet.',
             note: finalized ? null : "Wait for 'Final' before handing over goods.",
             variant: 'primary',
-            send: async (opts) => stagedWrites.merchantClaim({ invoicePda }, opts),
+            send: async (opts) => writeSdk.merchantClaim({ invoicePda }, opts),
             waitFor: (inv) => inv.claimed,
           }}
         />
@@ -257,7 +257,7 @@ function ActionPanel({
             key: 'refund',
             label: 'Refund extra to customer',
             description: 'Send the overpayment back to the wallet that paid.',
-            send: async (opts) => stagedWrites.refundOverpayment({ invoicePda }, opts),
+            send: async (opts) => writeSdk.refundOverpayment({ invoicePda }, opts),
             waitFor: (inv) => inv.refundedExcess > 0n,
           }}
         />
@@ -270,7 +270,7 @@ function ActionPanel({
             key: 'expire',
             label: 'Mark as expired',
             description: 'The expiry time has passed. Mark it expired so it can no longer be paid.',
-            send: async (opts) => stagedWrites.expireInvoice({ invoicePda }, opts),
+            send: async (opts) => writeSdk.expireInvoice({ invoicePda }, opts),
             waitFor: (inv) => inv.status === InvoiceStatus.Expired,
           }}
         />
@@ -346,7 +346,7 @@ function RecoverButton({ invoicePda, destination }: { invoicePda: PublicKey; des
   const tx = useTxAction(
     async (opts) => {
       if (!destination) throw new Error('Enter the destination token account address.');
-      return stagedWrites.recoverUnattributed({ invoicePda, destinationAta: destination }, opts);
+      return writeSdk.recoverUnattributed({ invoicePda, destinationAta: destination }, opts);
     },
     { invoicePda },
   );

@@ -1,0 +1,10 @@
+[
+  {
+    "step": "read-only verify of FS invoices A/B/C",
+    "result": "ok"
+  },
+  {
+    "step": "funding check",
+    "result": "NOT FUNDED: merchant FKoGJXKscKfNZUYp2SRmVBfpM8MyxguCdGPPqKRfXAHG SOL=0; payer 5VXVv9HfM4HvtidVth6X7jnVtZqYnV9aR2GJGPWZjPsG SOL=0 USDC=0 (need merchant>=0.05 SOL, payer>=0.02 SOL and >=2.5 USDC)"
+  }
+]

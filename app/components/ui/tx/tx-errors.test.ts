@@ -252,4 +252,12 @@ describe('mapTxError Full-Stack mapError cases', () => {
       },
     });
   });
+
+  it('maps an unfunded fee payer (real devnet SendTransactionError text) to the SOL copy', () => {
+    const error = new Error(
+      'Simulation failed. \nMessage: Transaction simulation failed: This account may not be used to pay transaction fees. \nLogs: \n[]. \nCatch the `SendTransactionError` and call `getLogs()` on it for full details.',
+    );
+    expect(mapTxError(error).error.code).toBe('INSUFFICIENT_SOL');
+    expect(mapTxError(error).error.message).toBe('Not enough SOL to pay the network fee.');
+  });
 });

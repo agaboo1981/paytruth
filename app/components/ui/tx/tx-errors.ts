@@ -118,7 +118,7 @@ export function mapTxError(error: unknown): MappedTxError {
   const lower = `${text} ${mapped.name ?? ''} ${mapped.message}`.toLowerCase();
   const raw = message.length > 0 ? message : undefined;
   const hasInsufficientContext =
-    /insufficientfunds|insufficient\s*(funds|lamports|sol)|not enough sol|needs sol|no record of a prior credit/.test(
+    /insufficientfunds|insufficient\s*(funds|lamports|sol)|not enough sol|needs sol|no record of a prior credit|may not be used to pay transaction fees|invalidaccountforfee|insufficient funds for fee/.test(
       lower,
     );
   const hasProgramErrorContext =

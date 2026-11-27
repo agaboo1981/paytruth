@@ -9,7 +9,7 @@ import { CopyLink } from '@/components/ui/invoice/copy-link';
 import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Input } from '@/components/ui/input';
 import { formatUsdc, parseUsdc } from '@/components/ui/sdk/format';
-import { stagedWrites } from '@/components/ui/sdk/staged-writes';
+import { sdk as writeSdk } from '@/components/ui/sdk/client';
 import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
 import { TxStatus } from '@/components/ui/tx/tx-status';
 import { useTxAction } from '@/components/ui/tx/use-tx-action';
@@ -40,7 +40,11 @@ export default function NewInvoicePage() {
   const [memo, setMemo] = useState('');
   const [expiry, setExpiry] = useState<ExpiryPreset>('24h');
   const [customExpiry, setCustomExpiry] = useState('');
-  const [invoiceId, setInvoiceId] = useState(() => BigInt(Date.now()).toString());
+  // Set after mount: a Date.now() initial value differs between server and client render (hydration error #418).
+  const [invoiceId, setInvoiceId] = useState('');
+  useEffect(() => {
+    setInvoiceId((current) => current || BigInt(Date.now()).toString());
+  }, []);
   const [touched, setTouched] = useState(false);
   const [successPda, setSuccessPda] = useState<string | null>(null);
 
@@ -93,7 +97,7 @@ export default function NewInvoicePage() {
       if (!publicKey) throw new Error('Connect a wallet to create an invoice.');
       if (parsedAmount === null || parsedAmount <= 0n) throw new Error('Enter a valid amount.');
       if (computedExpiry === null) throw new Error('Choose an expiry time.');
-      const result = await stagedWrites.createInvoice({
+      const result = await writeSdk.createInvoice({
         invoiceId: BigInt(invoiceId),
         amountDue: parsedAmount,
         expiresAt: computedExpiry,
