@@ -87,7 +87,7 @@ Real signatures against the deployed program; script asserts on-chain state afte
 | 4 | Customer attempts duplicate payment | tx fails on-chain (`DuplicatePayment`); state unchanged |
 | 5 | Overpayment refunded (new invoice: pay > due, then `refund_overpayment`) | refunded_excess == excess; payer balance restored |
 | 6 | Expired invoice (short expiry, `expire_invoice`, pay fails, close) | pay fails (`InvoiceExpired`); status Expired; closed |
-| 7 | Independent observer verifies via `/verify/[invoicePda]` (no merchant/payer wallet) | page renders on-chain status; reads Invoice + escrow balance directly |
+| 7 | Independent observer verifies via `/verify/?invoice=<invoicePda>` (no merchant/payer wallet) | page renders on-chain status; reads Invoice + escrow balance directly |
 
 QA must run all seven steps on devnet before the video is recorded. Record each signature + final state in the submission notes.
 

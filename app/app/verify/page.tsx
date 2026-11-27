@@ -1,13 +1,17 @@
 'use client';
 
+import { invoicePath, useInvoiceRawParam } from '@/lib/routes';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Container } from '@/components/ui/layout/container';
+import { Skeleton } from '@/components/ui/skeleton';
 import { parsePublicKey } from '@/components/ui/sdk/validate';
 
-export default function VerifyPage() {
+import { InvoiceDetail } from './invoice-detail';
+
+function VerifyLookup() {
   const router = useRouter();
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +24,7 @@ export default function VerifyPage() {
       return;
     }
     setError(null);
-    router.push(`/verify/${value}`);
+    router.push(invoicePath('verify', value));
   }
 
   return (
@@ -57,5 +61,19 @@ export default function VerifyPage() {
         </div>
       </form>
     </Container>
+  );
+}
+
+function VerifyPageInner() {
+  const raw = useInvoiceRawParam();
+  if (raw) return <InvoiceDetail />;
+  return <VerifyLookup />;
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={<Container className="py-10"><Skeleton className="h-40 w-full" /></Container>}>
+      <VerifyPageInner />
+    </Suspense>
   );
 }

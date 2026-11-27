@@ -1,5 +1,7 @@
 'use client';
 
+import { invoicePath } from '@/lib/routes';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -42,7 +44,7 @@ export default function LandingPage() {
       return;
     }
     setError(null);
-    router.push(`/verify/${value}`);
+    router.push(invoicePath('verify', value));
   }
 
   return (
@@ -134,7 +136,7 @@ export default function LandingPage() {
               return (
                 <li key={label}>
                   <Link
-                    href={`/pay/${spec.pda}`}
+                    href={invoicePath('pay', spec.pda)}
                     className="flex h-full flex-col gap-1 rounded-md border border-border bg-surface p-4 transition-[border-color,transform] duration-fast hover:-translate-y-0.5 hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
                   >
                     <span className="text-micro font-semibold uppercase tracking-[0.08em] text-muted">

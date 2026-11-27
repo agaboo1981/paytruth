@@ -1,5 +1,7 @@
 'use client';
 
+import { invoicePath } from '@/lib/routes';
+
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -135,23 +137,23 @@ export default function NewInvoicePage() {
 
           <div className="mt-5 flex flex-col gap-2 rounded-sm border border-border bg-[var(--surface-2)] p-4">
             <span className="text-micro font-semibold uppercase tracking-[0.08em] text-muted">Pay link</span>
-            <span className="break-all font-mono text-small text-fg">{`/pay/${successPda}`}</span>
+            <span className="break-all font-mono text-small text-fg">{invoicePath('pay', successPda)}</span>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <CopyLink path={`/pay/${successPda}`} />
+              <CopyLink path={invoicePath('pay', successPda)} />
               <Link
-                href={`/pay/${successPda}`}
+                href={invoicePath('pay', successPda)}
                 className="inline-flex min-h-9 items-center rounded-xs border border-[var(--accent)] px-2 text-small font-semibold text-accent hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Open pay page
               </Link>
               <Link
-                href={`/verify/${successPda}`}
+                href={invoicePath('verify', successPda)}
                 className="inline-flex min-h-9 items-center rounded-xs border border-border px-2 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Verify link
               </Link>
               <Link
-                href={`/merchant/${successPda}`}
+                href={invoicePath('merchant', successPda)}
                 className="inline-flex min-h-9 items-center rounded-xs border border-border px-2 text-small font-semibold text-fg hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Open merchant view

@@ -89,7 +89,7 @@ UI is presentational and consumes SDK/hooks only.
 
 ## Public verify route
 
-`/verify/[invoicePda]` — reads chain directly (no backend declaration of success).
+`/verify/?invoice=<invoicePda>` — reads chain directly (no backend declaration of success).
 
 | Aspect | Rule |
 |---|---|

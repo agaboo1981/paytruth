@@ -1,11 +1,12 @@
 'use client';
 
+import { invoicePath, useInvoiceParam } from '@/lib/routes';
+
 import { InvoiceUnavailable } from '@/components/ui/invoice/load-error';
 
 import { PublicKey } from '@solana/web3.js';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useMemo, useRef, useState } from 'react';
+import { Suspense, useMemo, useRef, useState } from 'react';
 
 import { Address } from '@/components/ui/address';
 import { Badge } from '@/components/ui/badge';
@@ -105,10 +106,8 @@ function Timeline({ invoice }: { invoice: import('@/components/ui/sdk/types').In
   );
 }
 
-export default function MerchantInvoicePage() {
-  const params = useParams<{ invoicePda: string }>();
-  const raw = params?.invoicePda ?? '';
-  const invoicePda = parsePublicKey(raw);
+function MerchantInvoiceInner() {
+  const invoicePda = useInvoiceParam();
   const { publicKey } = useWalletKey();
   const view = useInvoiceView(invoicePda);
   const [closedLocally, setClosedLocally] = useState<{ signature?: string } | null>(null);
@@ -152,7 +151,7 @@ export default function MerchantInvoicePage() {
           <Link href="/" className="hover:text-accent">Home</Link> <span aria-hidden="true">/</span>{' '}
           <span className="text-fg">Merchant view</span>
         </nav>
-        <CopyLink path={`/merchant/${invoicePda.toBase58()}`} label="Copy link" />
+        <CopyLink path={invoicePath('merchant', invoicePda.toBase58())} label="Copy link" />
       </div>
 
       <StatusHero kind={derived.kind} headline={derived.headline} explanation={derived.explanation} />
@@ -376,5 +375,13 @@ function RecoverButton({ invoicePda, destination }: { invoicePda: PublicKey; des
       {!destination ? <p className="text-small text-muted">Enter a valid token account address to continue.</p> : null}
       {tx.state.status !== 'idle' ? <TxStatus state={tx.state} /> : null}
     </div>
+  );
+}
+
+export default function MerchantInvoicePage() {
+  return (
+    <Suspense fallback={<Container className="py-10"><Skeleton className="h-40 w-full" /></Container>}>
+      <MerchantInvoiceInner />
+    </Suspense>
   );
 }

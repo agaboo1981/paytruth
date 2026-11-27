@@ -21,8 +21,8 @@ export default defineConfig({
   ],
   workers: 2,
   webServer: {
-    command: 'npm run start -- --port 3197',
-    url: 'http://127.0.0.1:3197/',
+    command: 'node scripts/serve-pages.mjs --port 3197',
+    url: 'http://127.0.0.1:3197/paytruth/',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {

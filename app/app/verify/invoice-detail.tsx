@@ -1,12 +1,13 @@
 'use client';
 
+import { invoicePath, useInvoiceParam } from '@/lib/routes';
+
 import { InvoiceUnavailable } from '@/components/ui/invoice/load-error';
 
 import { isMock } from '@/components/ui/sdk/client';
 
 import { PublicKey } from '@solana/web3.js';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 
 import { Address } from '@/components/ui/address';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -18,7 +19,6 @@ import { Button } from '@/components/ui/button';
 import { derivedView, decodeMemo } from '@/components/ui/sdk/format';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
-import { parsePublicKey } from '@/components/ui/sdk/validate';
 
 type Verdict = {
   heading: string;
@@ -84,10 +84,8 @@ function verdictFor(
   };
 }
 
-export default function VerifyInvoicePage() {
-  const params = useParams<{ invoicePda: string }>();
-  const raw = params?.invoicePda ?? '';
-  const invoicePda = parsePublicKey(raw);
+export function InvoiceDetail() {
+  const invoicePda = useInvoiceParam();
   const view = useInvoiceView(invoicePda);
 
   if (!invoicePda) {
@@ -154,7 +152,7 @@ export default function VerifyInvoicePage() {
     <Container className="flex max-w-[760px] flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-headline font-bold tracking-[-0.03em] text-fg">Invoice verdict</h1>
-        <CopyLink path={`/verify/${invoicePda.toBase58()}`} label="Copy link" />
+        <CopyLink path={invoicePath('verify', invoicePda.toBase58())} label="Copy link" />
       </div>
 
       <section
