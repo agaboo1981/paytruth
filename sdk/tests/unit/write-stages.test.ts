@@ -1,3 +1,4 @@
+import { utils } from '@anchor-lang/core';
 import { Keypair, PublicKey, Transaction, type Connection, type VersionedTransaction } from '@solana/web3.js';
 import { describe, expect, it, vi } from 'vitest';
 import { PaytruthClient } from '../../src/client';
@@ -37,7 +38,7 @@ function mockConnection() {
 describe('write-stage callbacks (expireInvoice success path)', () => {
   it('fires awaiting-signature -> signed -> sent -> confirmed in order', async () => {
     const kp = Keypair.generate();
-    const { conn } = mockConnection();
+    const { conn, send } = mockConnection();
     const client = new PaytruthClient({ connection: conn, wallet: signingWallet(kp), programId: PROGRAM_ID });
     const stages: string[] = [];
     const signedSigs: string[] = [];
@@ -55,10 +56,15 @@ describe('write-stage callbacks (expireInvoice success path)', () => {
     await client.expireInvoice({ invoicePda }, opts);
 
     expect(stages.map((s) => s.split(':')[0])).toEqual(['awaiting-signature', 'signed', 'sent', 'confirmed']);
-    // signed carries the fee payer base58 signature, and onSigned matches it.
-    expect(stages[1]!.startsWith(`signed:${kp.publicKey.toBase58()}`)).toBe(true);
-    expect(signedSigs.length).toBe(1);
-    expect(signedSigs[0]).toBe(kp.publicKey.toBase58());
+    // signed carries the real fee-payer (transaction) signature, not the public key.
+    const [raw] = send.mock.calls[0]!;
+    const realSig = utils.bytes.bs58.encode(Transaction.from(raw).signature!);
+    expect(stages[1]).toBe(`signed:${realSig}`);
+    expect(signedSigs).toEqual([realSig]);
+    expect(realSig).not.toBe(kp.publicKey.toBase58());
+    // sent and confirmed also carry the same real signature from the RPC.
+    expect(stages[2]).toBe('sent:SIG_OK');
+    expect(stages[3]).toBe('confirmed:SIG_OK');
   });
 
   it('does not fire signed/sent when the wallet rejects signing', async () => {

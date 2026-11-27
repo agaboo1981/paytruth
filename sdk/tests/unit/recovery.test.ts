@@ -5,7 +5,7 @@ import { PaytruthClient } from '../../src/client';
 import { PAYTRUTH_IDL } from '../../src/idl';
 import { getInvoicePda } from '../../src/pda';
 import { InvoiceStatus, type Invoice } from '../../src/types';
-import { TxTimeoutError, WalletNotSupportedError } from '../../src/errors';
+import { PaytruthError, TxTimeoutError, WalletNotSupportedError } from '../../src/errors';
 import type { PaytruthWallet } from '../../src/send';
 
 const PROGRAM_ID = new PublicKey('D8dnG9j1zSwwaJLyAvp794MJqEXptdiVS74gh6fNLQ7H');
@@ -52,6 +52,8 @@ function wallet(kp: Keypair): PaytruthWallet {
 const [invoicePda] = getInvoicePda(merchantKp.publicKey, 1n, PROGRAM_ID);
 
 describe('payInvoice recovery (TEST-PLAN D1/D2)', () => {
+  const OUR_BLOCKHASH = '11111111111111111111111111111111';
+
   it('D1: send timeout but chain already Paid -> no second sendRawTransaction', async () => {
     const paidData = await encodeInvoice({ invoiceId: 1n, status: InvoiceStatus.Paid, payer: payerKp.publicKey, paidAmount: 100n });
     let accountReads = 0;
@@ -62,7 +64,7 @@ describe('payInvoice recovery (TEST-PLAN D1/D2)', () => {
     const conn = {
       rpcEndpoint: 'http://localhost:8899',
       getGenesisHash: vi.fn().mockResolvedValue('EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
-      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 100 }),
+      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: OUR_BLOCKHASH, lastValidBlockHeight: 100 }),
       getBlockHeight: vi.fn().mockResolvedValue(90), // old blockhash still valid
       sendRawTransaction,
       confirmTransaction: vi.fn(),
@@ -96,8 +98,8 @@ describe('payInvoice recovery (TEST-PLAN D1/D2)', () => {
       getGenesisHash: vi.fn().mockResolvedValue('EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
       getLatestBlockhash: vi
         .fn()
-        .mockResolvedValueOnce({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 100 })
-        .mockResolvedValue({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 200 }),
+        .mockResolvedValueOnce({ blockhash: OUR_BLOCKHASH, lastValidBlockHeight: 100 })
+        .mockResolvedValue({ blockhash: OUR_BLOCKHASH, lastValidBlockHeight: 200 }),
       getBlockHeight: vi.fn().mockResolvedValue(150), // > 100 => expired
       sendRawTransaction,
       confirmTransaction,
@@ -121,7 +123,7 @@ describe('payInvoice recovery (TEST-PLAN D1/D2)', () => {
     const conn = {
       rpcEndpoint: 'http://localhost:8899',
       getGenesisHash: vi.fn().mockResolvedValue('EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
-      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 100 }),
+      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: OUR_BLOCKHASH, lastValidBlockHeight: 100 }),
       getBlockHeight: vi.fn().mockResolvedValue(80), // still valid
       sendRawTransaction,
       confirmTransaction: vi.fn(),
@@ -130,6 +132,126 @@ describe('payInvoice recovery (TEST-PLAN D1/D2)', () => {
     const client = new PaytruthClient({ connection: conn, wallet: wallet(payerKp), programId: PROGRAM_ID });
     await expect(client.payInvoice({ invoicePda, amount: 100n, expectedAmountDue: 100n })).rejects.toBeInstanceOf(TxTimeoutError);
     expect(sendRawTransaction).toHaveBeenCalledTimes(1); // never resubmitted while blockhash valid
+  });
+});
+
+describe('recovery uses the blockhash the wallet actually signed', () => {
+  const OUR_BLOCKHASH = '11111111111111111111111111111111';
+  const WALLET_BLOCKHASH = 'So11111111111111111111111111111111111111112';
+
+  function connWith(args: {
+    getAccountInfo: ReturnType<typeof vi.fn>;
+    isBlockhashValid: () => boolean | Promise<boolean>;
+    getBlockHeight?: number;
+  }) {
+    return {
+      rpcEndpoint: 'http://localhost:8899',
+      getGenesisHash: vi.fn().mockResolvedValue('EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
+      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: OUR_BLOCKHASH, lastValidBlockHeight: 100 }),
+      getBlockHeight: vi.fn().mockResolvedValue(args.getBlockHeight ?? 50),
+      isBlockhashValid: vi.fn().mockImplementation(async () => ({
+        context: { slot: 1 },
+        value: await args.isBlockhashValid(),
+      })),
+      getSignatureStatuses: vi.fn().mockResolvedValue({ context: { slot: 1 }, value: [null] }),
+      sendRawTransaction: vi.fn(),
+      confirmTransaction: vi.fn(),
+      getAccountInfo: args.getAccountInfo,
+    } as unknown as Connection;
+  }
+
+  it('changed blockhash + confirm timeout + chain already landed -> no resubmit (recovered)', async () => {
+    const paidData = await encodeInvoice({ invoiceId: 1n, status: InvoiceStatus.Paid, payer: payerKp.publicKey, paidAmount: 100n });
+    const conn = connWith({
+      getAccountInfo: vi.fn().mockResolvedValue(info(paidData)),
+      isBlockhashValid: () => false,
+    });
+    const client = new PaytruthClient({ connection: conn, wallet: wallet(payerKp), programId: PROGRAM_ID });
+    const timeout = new PaytruthError('confirm timeout') as PaytruthError & {
+      signature?: string;
+      attempt?: { signature: string; signedBlockhash: string; lastValidBlockHeight?: number };
+    };
+    timeout.signature = 'SIG';
+    timeout.attempt = { signature: 'SIG', signedBlockhash: WALLET_BLOCKHASH };
+    const result = await client.recoverAfterError(
+      {
+        build: async () => [],
+        invoicePda,
+        landed: (inv: Invoice | null) => inv !== null && inv.status === InvoiceStatus.Paid,
+      },
+      timeout,
+    );
+    expect(result?.recovered).toBe(true);
+    expect(result?.signature).toBe('SIG');
+    expect((conn as unknown as { sendRawTransaction: ReturnType<typeof vi.fn> }).sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  it('changed blockhash + not landed + wallet blockhash still valid -> no resubmit (TxTimeout)', async () => {
+    const openData = await encodeInvoice({ invoiceId: 1n, status: InvoiceStatus.Open });
+    const conn = connWith({
+      getAccountInfo: vi.fn().mockResolvedValue(info(openData)),
+      isBlockhashValid: () => true,
+    });
+    const client = new PaytruthClient({ connection: conn, wallet: wallet(payerKp), programId: PROGRAM_ID });
+    const timeout = new PaytruthError('confirm timeout') as PaytruthError & {
+      signature?: string;
+      attempt?: { signature: string; signedBlockhash: string; lastValidBlockHeight?: number };
+    };
+    timeout.signature = 'SIG';
+    timeout.attempt = { signature: 'SIG', signedBlockhash: WALLET_BLOCKHASH };
+    await expect(
+      client.recoverAfterError(
+        {
+          build: async () => [],
+          invoicePda,
+          landed: (inv: Invoice | null) => inv !== null && inv.status === InvoiceStatus.Paid,
+        },
+        timeout,
+      ),
+    ).rejects.toBeInstanceOf(TxTimeoutError);
+    expect((conn as unknown as { sendRawTransaction: ReturnType<typeof vi.fn> }).sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  it('changed blockhash + not landed + wallet blockhash invalid -> exactly one resubmit', async () => {
+    const openData = await encodeInvoice({ invoiceId: 1n, status: InvoiceStatus.Open });
+    const paidData = await encodeInvoice({ invoiceId: 1n, status: InvoiceStatus.Paid, payer: payerKp.publicKey, paidAmount: 100n });
+    let sends = 0;
+    const sendRawTransaction = vi.fn().mockImplementation(async () => {
+      sends++;
+      if (sends === 1) throw new Error('Transaction was not confirmed in 30.00 seconds');
+      return 'SIG2';
+    });
+    // First attempt: the wallet refreshes the blockhash; second attempt: also refreshes
+    // (so confirmation goes through confirmBySignatureStatus, which we make resolve).
+    const walletRefreshing: PaytruthWallet = {
+      publicKey: payerKp.publicKey,
+      async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
+        (tx as Transaction).recentBlockhash = WALLET_BLOCKHASH;
+        (tx as Transaction).partialSign(payerKp);
+        return tx;
+      },
+    };
+    const conn = {
+      rpcEndpoint: 'http://localhost:8899',
+      getGenesisHash: vi.fn().mockResolvedValue('EtWTRABZaYq6iMfeYKouRu166VU2xqa1'),
+      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: OUR_BLOCKHASH, lastValidBlockHeight: 100 }),
+      getBlockHeight: vi.fn().mockResolvedValue(50),
+      // Wallet's blockhash is invalid -> recovery is allowed to resubmit.
+      isBlockhashValid: vi.fn().mockResolvedValue({ context: { slot: 1 }, value: false }),
+      // Confirmation of the second send resolves immediately.
+      getSignatureStatuses: vi.fn().mockResolvedValue({
+        context: { slot: 1 },
+        value: [{ slot: 1, confirmations: 0, err: null, confirmationStatus: 'confirmed' }],
+      }),
+      sendRawTransaction,
+      confirmTransaction: vi.fn(),
+      getAccountInfo: vi.fn().mockImplementation(async () => info(sends >= 2 ? paidData : openData)),
+    } as unknown as Connection;
+    const client = new PaytruthClient({ connection: conn, wallet: walletRefreshing, programId: PROGRAM_ID });
+    const result = await client.payInvoice({ invoicePda, amount: 100n, expectedAmountDue: 100n });
+    expect(result.recovered).toBe(false);
+    expect(result.signature).toBe('SIG2');
+    expect(sendRawTransaction).toHaveBeenCalledTimes(2);
   });
 });
 
