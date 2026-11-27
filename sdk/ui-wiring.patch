@@ -1,0 +1,330 @@
+diff --git a/app/app/layout.tsx b/app/app/layout.tsx
+index 89b0ab5..45abcd3 100644
+--- a/app/app/layout.tsx
++++ b/app/app/layout.tsx
+@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
+ import { AppShell } from '@/components/ui/layout/app-shell';
+ import { ToastProvider } from '@/components/ui/toast';
+ import '@/styles/globals.css';
++import { PaytruthWalletProvider } from '@/lib/paytruth/react';
+ 
+ export const metadata: Metadata = {
+   title: 'Paytruth — invoices that prove they were paid',
+@@ -31,9 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode })
+       </head>
+       <body>
+         {/* Integration point (Full-Stack owns): wrap with the wallet/connection provider here. */}
+-        <ToastProvider>
+-          <AppShell>{children}</AppShell>
+-        </ToastProvider>
++        <PaytruthWalletProvider>
++          <ToastProvider>
++            <AppShell>{children}</AppShell>
++          </ToastProvider>
++        </PaytruthWalletProvider>
+       </body>
+     </html>
+   );
+diff --git a/app/app/pay/[invoicePda]/page.tsx b/app/app/pay/[invoicePda]/page.tsx
+index 4c812f0..7811ce5 100644
+--- a/app/app/pay/[invoicePda]/page.tsx
++++ b/app/app/pay/[invoicePda]/page.tsx
+@@ -79,7 +79,8 @@ export default function PayInvoicePage() {
+       if (!invoicePda) throw new Error('Invalid invoice address.');
+       const amount = parseUsdc(customAmount) ?? view.invoice?.amountDue ?? 0n;
+       if (amount <= 0n) throw new Error('Enter a valid amount.');
+-      return sdk.payInvoice({ invoicePda, amount });
++      if (!view.invoice) throw new Error('Invoice not loaded.');
++      return sdk.payInvoice({ invoicePda, amount, expectedAmountDue: view.invoice.amountDue });
+     },
+     {
+       invoicePda: invoicePda ?? undefined,
+diff --git a/app/components/ui/sdk/real-sdk.ts b/app/components/ui/sdk/real-sdk.ts
+index f7b0e04..2f9605e 100644
+--- a/app/components/ui/sdk/real-sdk.ts
++++ b/app/components/ui/sdk/real-sdk.ts
+@@ -1,49 +1 @@
+-/**
+- * Integration point: replace this file's body with `export { ... } from '@/lib/paytruth'`
+- * once Full-Stack lands the SDK. Never fake chain results here.
+- *
+- * Until then every method throws so the UI cannot mistake a fake result for a
+- * confirmed on-chain one. Set NEXT_PUBLIC_PAYTRUTH_SDK=real to use this build.
+- */
+-import type { PublicKey } from '@solana/web3.js';
+-
+-import type { PaytruthSdk } from './types';
+-
+-const NOT_WIRED =
+-  'Paytruth SDK not wired yet: Full-Stack SDK (lib/paytruth) is not available in this build.';
+-
+-function notWired(): never {
+-  throw new Error(NOT_WIRED);
+-}
+-
+-async function reject<T>(): Promise<T> {
+-  throw new Error(NOT_WIRED);
+-}
+-
+-export const realSdk: PaytruthSdk = {
+-  getInvoicePda(_merchant: PublicKey, _invoiceId: bigint): never {
+-    return notWired();
+-  },
+-  getConfigPda(): never {
+-    return notWired();
+-  },
+-  getEscrowAta(_invoicePda: PublicKey, _mint: PublicKey): never {
+-    return notWired();
+-  },
+-  fetchConfig: () => reject(),
+-  fetchInvoice: () => reject(),
+-  fetchInvoiceByMerchantAndId: () => reject(),
+-  fetchEscrowBalance: () => reject(),
+-  initializeConfig: () => reject(),
+-  createInvoice: () => reject(),
+-  payInvoice: () => reject(),
+-  merchantClaim: () => reject(),
+-  refundOverpayment: () => reject(),
+-  expireInvoice: () => reject(),
+-  recoverUnattributed: () => reject(),
+-  closeInvoice: () => reject(),
+-  waitForInvoiceState: () => reject(),
+-  subscribeInvoice(): () => void {
+-    return notWired();
+-  },
+-};
++export { paytruthSdk as realSdk } from '@/lib/paytruth';
+diff --git a/app/components/ui/sdk/types.ts b/app/components/ui/sdk/types.ts
+index 2586217..a79640e 100644
+--- a/app/components/ui/sdk/types.ts
++++ b/app/components/ui/sdk/types.ts
+@@ -1,67 +1 @@
+-/**
+- * UI-owned mirror of the Paytruth SDK surface, copied verbatim from
+- * paytruth/docs/INTERFACES.md (signatures only). Full-Stack owns the real
+- * implementation (sdk/** or app/lib/paytruth/**). Do not add logic here.
+- */
+-import type { PublicKey } from '@solana/web3.js';
+-
+-export type Commitment = 'processed' | 'confirmed' | 'finalized';
+-
+-export enum InvoiceStatus {
+-  Open = 0,
+-  Paid = 1,
+-  Expired = 2,
+-}
+-
+-export interface Config {
+-  authority: PublicKey;
+-  usdcMint: PublicKey;
+-  bump: number;
+-}
+-
+-export interface Invoice {
+-  merchant: PublicKey;
+-  payer: PublicKey; // PublicKey.default until paid
+-  mint: PublicKey;
+-  invoiceId: bigint;
+-  amountDue: bigint;
+-  paidAmount: bigint;
+-  refundedExcess: bigint;
+-  createdAt: bigint;
+-  expiresAt: bigint;
+-  status: InvoiceStatus;
+-  claimed: boolean;
+-  bump: number;
+-  memo: Uint8Array; // 64 bytes, zero-padded
+-}
+-
+-export interface PaytruthSdk {
+-  // PDA derivation
+-  getInvoicePda(merchant: PublicKey, invoiceId: bigint): [PublicKey, number];
+-  getConfigPda(): [PublicKey, number];
+-  getEscrowAta(invoicePda: PublicKey, mint: PublicKey): PublicKey;
+-
+-  // Reads
+-  fetchConfig(commitment?: Commitment): Promise<Config>;
+-  fetchInvoice(invoicePda: PublicKey, commitment?: Commitment): Promise<Invoice>;
+-  fetchInvoiceByMerchantAndId(merchant: PublicKey, invoiceId: bigint, commitment?: Commitment): Promise<Invoice>;
+-  fetchEscrowBalance(invoicePda: PublicKey, mint: PublicKey): Promise<bigint>;
+-
+-  // Writes (return confirmed signature; caller polls state)
+-  initializeConfig(args: { usdcMint: PublicKey }): Promise<{ signature: string; configPda: PublicKey }>;
+-  createInvoice(args: { invoiceId: bigint; amountDue: bigint; expiresAt: bigint; memo: string | Uint8Array }): Promise<{ signature: string; invoicePda: PublicKey }>;
+-  payInvoice(args: { invoicePda: PublicKey; amount: bigint }): Promise<{ signature: string }>;
+-  merchantClaim(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
+-  refundOverpayment(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
+-  expireInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
+-  recoverUnattributed(args: { invoicePda: PublicKey; destinationAta: PublicKey }): Promise<{ signature: string }>;
+-  closeInvoice(args: { invoicePda: PublicKey }): Promise<{ signature: string }>;
+-
+-  // State helpers
+-  waitForInvoiceState(
+-    invoicePda: PublicKey,
+-    predicate: (inv: Invoice) => boolean,
+-    opts?: { commitment?: Commitment; timeoutMs?: number },
+-  ): Promise<Invoice>;
+-  subscribeInvoice(invoicePda: PublicKey, cb: (inv: Invoice | null) => void): () => void;
+-}
++export { InvoiceStatus, type Commitment, type Config, type Invoice, type PaytruthSdk } from '@/lib/paytruth';
+diff --git a/app/components/ui/sdk/use-invoice-view.ts b/app/components/ui/sdk/use-invoice-view.ts
+index 6f3da1b..d229a6d 100644
+--- a/app/components/ui/sdk/use-invoice-view.ts
++++ b/app/components/ui/sdk/use-invoice-view.ts
+@@ -1,133 +1,14 @@
+ 'use client';
+ 
+-import { PublicKey } from '@solana/web3.js';
+-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import type { PublicKey } from '@solana/web3.js';
+ 
+-import { sdk } from './client';
+-import type { Invoice } from './types';
+-
+-export type InvoiceView = {
+-  invoice: Invoice | null;
+-  escrowBalance: bigint | null;
+-  loading: boolean;
+-  error: Error | null;
+-  /** 'not-found' = account does not exist; 'unavailable' = could not read (RPC/SDK). */
+-  errorKind: 'not-found' | 'unavailable' | null;
+-  finalized: boolean;
+-  refresh: () => void;
+-};
+-
+-/**
+- * UI-owned read hook. Full-Stack's `useInvoice` will replace this at
+- * integration; the returned shape mirrors what we need from it.
+- */
+-function sameSettlementState(a: Invoice, b: Invoice): boolean {
+-  return (
+-    a.status === b.status &&
+-    a.claimed === b.claimed &&
+-    a.paidAmount === b.paidAmount &&
+-    a.refundedExcess === b.refundedExcess
+-  );
+-}
+-
+-export function useInvoiceView(invoicePdaInput: PublicKey | null): InvoiceView {
+-  // Callers often construct a fresh PublicKey every render; key effects by the
+-  // base58 string so we do not refetch/resubscribe in a render loop.
+-  const pdaKey = invoicePdaInput ? invoicePdaInput.toBase58() : null;
+-  const invoicePda = useMemo(() => (pdaKey ? new PublicKey(pdaKey) : null), [pdaKey]);
+-  const [invoice, setInvoice] = useState<Invoice | null>(null);
+-  const [escrowBalance, setEscrowBalance] = useState<bigint | null>(null);
+-  const [loading, setLoading] = useState(true);
+-  const [error, setError] = useState<Error | null>(null);
+-  const [finalized, setFinalized] = useState(false);
+-  const [nonce, setNonce] = useState(0);
+-
+-  const loadedKey = useRef<string | null>(null);
++import { useInvoice, type InvoiceView } from '@/lib/paytruth/react';
+ 
+-  const refresh = useCallback(() => setNonce((value) => value + 1), []);
+-
+-  useEffect(() => {
+-    if (!invoicePda) {
+-      setInvoice(null);
+-      setEscrowBalance(null);
+-      setLoading(false);
+-      return;
+-    }
+-
+-    let active = true;
+-    // Skeleton only on first load of this address; background refreshes keep the current view.
+-    if (loadedKey.current !== pdaKey) setLoading(true);
+-
+-    void (async () => {
+-      try {
+-        const confirmed = await sdk.fetchInvoice(invoicePda, 'confirmed');
+-        if (!active) return;
+-        setInvoice(confirmed);
+-        const [finalizedInvoice, balance] = await Promise.all([
+-          sdk.fetchInvoice(invoicePda, 'finalized'),
+-          sdk.fetchEscrowBalance(invoicePda, confirmed.mint),
+-        ]);
+-        if (!active) return;
+-        setEscrowBalance(balance);
+-        setError(null);
+-        if (sameSettlementState(confirmed, finalizedInvoice)) {
+-          setFinalized(true);
+-          setInvoice(finalizedInvoice);
+-        } else {
+-          // Newer state is only confirmed so far: show it as "confirming…" and re-check shortly.
+-          setFinalized(false);
+-          setInvoice(confirmed);
+-          setTimeout(() => {
+-            if (active) setNonce((value) => value + 1);
+-          }, 2000);
+-        }
+-      } catch (caught) {
+-        if (!active) return;
+-        setInvoice(null);
+-        setEscrowBalance(null);
+-        setFinalized(false);
+-        setError(caught instanceof Error ? caught : new Error('Could not read the invoice.'));
+-      } finally {
+-        if (active) {
+-          loadedKey.current = pdaKey;
+-          setLoading(false);
+-        }
+-      }
+-    })();
+-
+-    return () => {
+-      active = false;
+-    };
+-  }, [invoicePda, pdaKey, nonce]);
+-
+-  useEffect(() => {
+-    if (!invoicePda) return undefined;
+-    let unsubscribe: () => void = () => undefined;
+-    try {
+-      unsubscribe = sdk.subscribeInvoice(invoicePda, (next) => {
+-        if (!next) return;
+-        setInvoice(next);
+-        // A push update is not proof of finality: drop to "confirming" and
+-        // re-read at finalized before showing a final badge.
+-        setFinalized(false);
+-        setNonce((value) => value + 1);
+-        void sdk
+-          .fetchEscrowBalance(invoicePda, next.mint)
+-          .then((balance) => setEscrowBalance(balance))
+-          .catch(() => undefined);
+-      });
+-    } catch (caught) {
+-      // Live updates unavailable (e.g. SDK not wired); the fetch effect reports the error.
+-      setError(caught instanceof Error ? caught : new Error('Live updates are unavailable.'));
+-    }
+-    return () => unsubscribe();
+-  }, [invoicePda]);
++import { sdk } from './client';
+ 
+-  const errorKind = error
+-    ? /not found|does not exist|could not find account|account.*no data/i.test(error.message)
+-      ? 'not-found'
+-      : 'unavailable'
+-    : null;
++export type { InvoiceView };
+ 
+-  return { invoice, escrowBalance, loading, error, errorKind, finalized, refresh };
++/** Full-Stack useInvoice; `sdk` keeps NEXT_PUBLIC_PAYTRUTH_SDK=mock working. */
++export function useInvoiceView(invoicePda: PublicKey | null): InvoiceView {
++  return useInvoice(invoicePda, { client: sdk });
+ }
+diff --git a/app/next.config.mjs b/app/next.config.mjs
+index 6552000..6c53924 100644
+--- a/app/next.config.mjs
++++ b/app/next.config.mjs
+@@ -5,6 +5,11 @@ const nextConfig = {
+     '@solana/wallet-adapter-react',
+     '@solana/wallet-adapter-react-ui',
+   ],
++  webpack: (config) => {
++    // @anchor-lang/core's browser bundle references fs inside NodeWallet.local() (never called in the browser).
++    config.resolve.fallback = { ...config.resolve.fallback, fs: false };
++    return config;
++  },
+ };
+ 
+ export default nextConfig;
