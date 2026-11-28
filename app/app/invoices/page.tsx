@@ -10,9 +10,14 @@ import { invoicePath } from '@/lib/routes';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatTimestamp, Money } from '@/components/ui/invoice/fields';
+import { InvoiceHistory } from '@/components/ui/history/invoice-history';
 import {
+  filterCounts,
   GROUP_ORDER,
   groupInvoices,
+  matchesFilter,
+  STATUS_FILTERS,
+  type StatusFilter,
   type InvoiceGroup,
   type InvoiceRole,
   type InvoiceRowStatus,
@@ -152,7 +157,15 @@ function InvoiceList({ wallet, role, canAct }: { wallet: PublicKey; role: Invoic
     setNow(BigInt(Math.floor(Date.now() / 1000)));
   }, [rows]);
 
-  const groups = useMemo(() => (rows && now !== null ? groupInvoices(rows, now, role) : null), [rows, now, role]);
+  const [filter, setFilter] = useState<StatusFilter>('all');
+  const counts = useMemo(() => (rows && now !== null ? filterCounts(rows, now, role) : null), [rows, now, role]);
+  const groups = useMemo(
+    () =>
+      rows && now !== null
+        ? groupInvoices(rows.filter((r) => matchesFilter(r.invoice, filter, now, role)), now, role)
+        : null,
+    [rows, now, role, filter],
+  );
 
   if (error && !rows) {
     return (
@@ -181,7 +194,7 @@ function InvoiceList({ wallet, role, canAct }: { wallet: PublicKey; role: Invoic
   }
 
   const total = GROUP_ORDER.reduce((n, g) => n + groups[g].length, 0);
-  if (total === 0) {
+  if (total === 0 && (rows?.length ?? 0) === 0) {
     return (
       <div className="flex flex-col items-start gap-3 rounded-lg border border-border bg-surface p-6 shadow-panel">
         <h2 className="font-display text-title font-bold text-fg">
@@ -202,8 +215,16 @@ function InvoiceList({ wallet, role, canAct }: { wallet: PublicKey; role: Invoic
     );
   }
 
+  const filterLabel = STATUS_FILTERS.find((f) => f.id === filter)?.label ?? 'All';
   return (
     <div className="flex flex-col gap-8">
+      {counts ? <FilterTabs value={filter} counts={counts} onChange={setFilter} /> : null}
+      {total === 0 ? (
+        <div className="flex flex-col items-start gap-2 rounded-lg border border-border bg-surface p-6">
+          <h2 className="font-display text-title font-bold text-fg">No invoices match &ldquo;{filterLabel}&rdquo;</h2>
+          <Button variant="ghost" size="sm" onClick={() => setFilter('all')}>Show all invoices</Button>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <p className="text-small text-muted" aria-live="polite">
           {total} invoice{total === 1 ? '' : 's'}
@@ -215,7 +236,7 @@ function InvoiceList({ wallet, role, canAct }: { wallet: PublicKey; role: Invoic
         <p role="alert" className="text-small text-warning">Couldn&apos;t refresh just now. Showing the last list we read.</p>
       ) : null}
       {GROUP_ORDER.map((g) =>
-        groups[g].length === 0 && g !== 'needs-action' ? null : (
+        groups[g].length === 0 && (g !== 'needs-action' || filter !== 'all') ? null : (
           <section key={g} aria-labelledby={`group-${g}`} className="flex flex-col gap-3">
             <h2 id={`group-${g}`} className="flex items-center gap-2 font-display text-title font-bold text-fg">
               {GROUP_COPY[g].title}
@@ -254,14 +275,17 @@ function InvoiceRow({
   const address = pda.toBase58();
   const memo = decodeMemo(invoice.memo) || 'No description';
   const highlight = status.group === 'needs-action';
+  const [showHistory, setShowHistory] = useState(false);
+  const historyId = `history-${address}`;
 
   return (
     <article
       className={
-        'flex flex-col gap-3 rounded-md border bg-surface p-4 shadow-panel md:flex-row md:items-center md:justify-between ' +
+        'flex flex-col gap-2 rounded-md border bg-surface p-4 shadow-panel ' +
         (highlight ? 'border-[var(--warning)]' : 'border-border')
       }
     >
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <Money value={invoice.amountDue} className="font-semibold text-fg" />
@@ -278,6 +302,26 @@ function InvoiceRow({
         </nav>
       </div>
       {status.canClaim && canAct ? <ClaimInline invoicePda={pda} onDone={onChanged} /> : null}
+      </div>
+      <div className="-ml-2">
+        <button
+          type="button"
+          aria-expanded={showHistory}
+          aria-controls={historyId}
+          onClick={() => setShowHistory((v) => !v)}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-xs px-2 text-small font-semibold text-fg hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className={'transition-transform duration-fast ' + (showHistory ? 'rotate-180' : '')}>
+            <path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {showHistory ? 'Hide history' : 'Show history'}
+        </button>
+      </div>
+      {showHistory ? (
+        <div id={historyId} className="border-t border-border pt-3">
+          <InvoiceHistory invoicePda={pda} compact />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -296,6 +340,71 @@ function ClaimInline({ invoicePda, onDone }: { invoicePda: PublicKey; onDone: ()
         </Button>
       ) : null}
       {tx.state.status !== 'idle' ? <TxStatus state={tx.state} /> : null}
+    </div>
+  );
+}
+
+function FilterTabs({
+  value,
+  counts,
+  onChange,
+}: {
+  value: StatusFilter;
+  counts: Record<StatusFilter, number>;
+  onChange: (f: StatusFilter) => void;
+}) {
+  const ids = STATUS_FILTERS.map((f) => f.id);
+  function move(delta: number) {
+    const next = ids[(ids.indexOf(value) + delta + ids.length) % ids.length];
+    onChange(next);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`filter-${next}`);
+      el?.focus();
+      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
+  return (
+    <div className="-mx-5 overflow-x-auto px-5 pb-1 md:mx-0 md:px-0 [scrollbar-width:thin]">
+      <div
+        role="tablist"
+        aria-label="Filter by status"
+        className="flex w-max gap-2"
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight') { e.preventDefault(); move(1); }
+          if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); }
+          if (e.key === 'Home') { e.preventDefault(); move(-ids.indexOf(value)); }
+          if (e.key === 'End') { e.preventDefault(); move(ids.length - 1 - ids.indexOf(value)); }
+        }}
+      >
+        {STATUS_FILTERS.map((f) => {
+          const selected = f.id === value;
+          return (
+            <button
+              key={f.id}
+              id={`filter-${f.id}`}
+              role="tab"
+              type="button"
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onChange(f.id)}
+              className={
+                'inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border px-3.5 text-small font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg ' +
+                (selected ? 'border-accent bg-accent text-accent-fg' : 'border-border bg-surface text-fg hover:border-[var(--accent)]')
+              }
+            >
+              {f.label}
+              <span
+                className={
+                  'min-w-6 rounded-pill px-1.5 text-center text-small tabular-nums ' +
+                  (selected ? 'bg-[var(--bg)] text-fg' : 'bg-[var(--surface-2)] text-muted')
+                }
+              >
+                <span className="sr-only">, </span>{counts[f.id]}<span className="sr-only">{counts[f.id] === 1 ? " invoice" : " invoices"}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

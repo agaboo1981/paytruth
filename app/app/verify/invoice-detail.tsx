@@ -17,6 +17,7 @@ import { Container, TechnicalDetails } from '@/components/ui/layout/container';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { derivedView, decodeMemo } from '@/components/ui/sdk/format';
+import { HistorySection } from '@/components/ui/history/invoice-history';
 import { useInvoiceView } from '@/components/ui/sdk/use-invoice-view';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
 
@@ -191,6 +192,10 @@ export function InvoiceDetail() {
           <Field label="Description" className="sm:col-span-2">{memo || '—'}</Field>
         </dl>
       </section>
+
+      <div className="print:break-inside-avoid">
+        <HistorySection invoicePda={invoicePda} />
+      </div>
 
       <section aria-labelledby="trust-heading" className="flex flex-col gap-3 rounded-md border border-border bg-[var(--surface-2)] p-5">
         <h2 id="trust-heading" className="font-display text-title font-bold text-fg">Why you can trust this</h2>

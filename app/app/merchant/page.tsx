@@ -24,6 +24,7 @@ import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
 import { parsePublicKey } from '@/components/ui/sdk/validate';
 import { InvoiceStatus } from '@/components/ui/sdk/types';
 import { ExplorerLink } from '@/components/ui/explorer-link';
+import { HistorySection } from '@/components/ui/history/invoice-history';
 import { TxStatus } from '@/components/ui/tx/tx-status';
 import { useLatch } from '@/components/ui/use-latch';
 import { useTxAction } from '@/components/ui/tx/use-tx-action';
@@ -207,7 +208,7 @@ function MerchantInvoiceInner() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="timeline-heading" className="flex flex-col gap-3 rounded-md border border-border bg-surface p-5 shadow-panel">
-          <h2 id="timeline-heading" className="font-display text-title font-bold text-fg">Timeline</h2>
+          <h2 id="timeline-heading" className="font-display text-title font-bold text-fg">Progress</h2>
           <Timeline invoice={invoice} />
         </section>
 
@@ -222,6 +223,8 @@ function MerchantInvoiceInner() {
           </dl>
         </section>
       </div>
+
+      <HistorySection invoicePda={invoicePda} />
 
     </Container>
   );
