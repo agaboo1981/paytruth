@@ -25,7 +25,7 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'min-h-9 px-3 text-small gap-1.5',
+  sm: 'min-h-11 px-3 text-small gap-1.5',
   md: 'min-h-11 px-4 text-body gap-2',
   lg: 'min-h-12 px-5 text-body gap-2.5',
 };
@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex items-center justify-center rounded-sm font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,transform] duration-fast active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-55 disabled:active:translate-y-0',
+        'inline-flex min-w-0 max-w-full items-center justify-center py-2 text-center rounded-sm font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,transform] duration-fast active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-55 disabled:active:translate-y-0',
         variants[variant],
         sizes[size],
         className,

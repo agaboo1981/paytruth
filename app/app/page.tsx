@@ -65,10 +65,10 @@ export default function LandingPage() {
   }
 
   return (
-    <Container className="flex flex-col gap-16 py-10 md:py-16">
-      <section className="grid items-center gap-10 md:grid-cols-[1.15fr_0.85fr]">
-        <div className="hero-enter flex flex-col gap-6">
-          <p className="inline-flex w-fit items-center gap-2 rounded-pill border border-[var(--accent)] px-3 py-1 text-micro font-semibold text-accent">
+    <Container className="flex flex-col gap-10 py-8 sm:gap-14 md:py-16">
+      <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-10">
+        <div className="hero-enter flex min-w-0 flex-col gap-5 sm:gap-6">
+          <p className="inline-flex w-fit items-center gap-2 rounded-pill border border-[var(--accent)] px-3 py-1.5 text-micro font-semibold text-accent">
             USDC invoices · Solana devnet · on-chain escrow
           </p>
           <h1 className="font-display text-display font-bold tracking-[-0.045em] text-fg">
@@ -78,7 +78,7 @@ export default function LandingPage() {
             Paytruth moves USDC from one wallet to another through escrow. When a customer pays, the
             Solana program records it — so you never have to take anyone&apos;s word for it.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button size="lg" onClick={() => router.push('/merchant/new')}>
               Create an invoice
             </Button>
@@ -126,7 +126,7 @@ export default function LandingPage() {
         <h2 id="how-it-works" className="font-display text-headline font-bold tracking-[-0.03em] text-fg">
           How it works
         </h2>
-        <ol className="mt-6 grid gap-4 md:grid-cols-3">
+        <ol className="mt-5 grid gap-4 lg:grid-cols-3">
           {steps.map((step, index) => (
             <li key={step.title} className="rounded-md border border-border bg-surface p-5 shadow-panel">
               <span className="font-mono text-small font-bold text-accent" aria-hidden="true">

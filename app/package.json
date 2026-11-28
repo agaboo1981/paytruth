@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:responsive": "playwright test responsive.spec.ts",
     "test:devnet": "playwright test -c playwright.devnet.config.ts",
     "contrast": "tsx scripts/compute-contrast.ts",
     "serve:pages": "node scripts/serve-pages.mjs --port 4173"

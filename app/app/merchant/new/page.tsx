@@ -128,7 +128,7 @@ export default function NewInvoicePage() {
 
   if (successPda) {
     return (
-      <Container className="flex flex-col gap-6">
+      <Container className="flex max-w-[760px] flex-col gap-6">
         <div className="hero-enter rounded-lg border border-[var(--success)] bg-surface p-6 shadow-panel md:p-8">
           <h1 className="font-display text-headline font-bold tracking-[-0.03em] text-fg">Invoice created</h1>
           <p className="mt-2 max-w-[56ch] text-body text-muted">
@@ -183,7 +183,7 @@ export default function NewInvoicePage() {
   }
 
   return (
-    <Container className="flex flex-col gap-6">
+    <Container className="flex max-w-[760px] flex-col gap-6">
       <div>
         <h1 className="font-display text-headline font-bold tracking-[-0.03em] text-fg">Create an invoice</h1>
         <p className="mt-2 max-w-[56ch] text-body text-muted">

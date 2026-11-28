@@ -21,11 +21,11 @@ export function ConnectedChip({ address, onDisconnect, className }: ConnectedChi
   return (
     <div
       className={cn(
-        'inline-flex min-w-0 items-center gap-3 rounded-sm border border-border bg-[var(--surface-2)] px-3 py-2',
+        'inline-flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border border-border bg-[var(--surface-2)] px-3 py-2',
         className,
       )}
     >
-      <span className="text-micro font-semibold text-success">Connected</span>
+      <span className="w-full text-micro font-semibold text-success xl:w-auto">Connected</span>
       <Address address={resolvedAddress} />
       <Button
         size="sm"

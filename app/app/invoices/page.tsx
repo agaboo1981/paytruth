@@ -117,7 +117,7 @@ function RoleTabs({ role, onChange }: { role: InvoiceRole; onChange: (r: Invoice
     { id: 'payer', label: 'Paid by me' },
   ];
   return (
-    <div role="tablist" aria-label="Which invoices" className="inline-flex w-fit gap-1 rounded-sm border border-border bg-[var(--surface-2)] p-1">
+    <div role="tablist" aria-label="Which invoices" className="inline-flex w-full gap-1 rounded-sm sm:w-fit border border-border bg-[var(--surface-2)] p-1">
       {tabs.map((t) => {
         const selected = t.id === role;
         return (
@@ -138,7 +138,7 @@ function RoleTabs({ role, onChange }: { role: InvoiceRole; onChange: (r: Invoice
             }}
             tabIndex={selected ? 0 : -1}
             className={
-              'min-h-11 rounded-xs px-4 text-small font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ' +
+              'min-h-11 min-w-0 flex-1 rounded-xs px-3 sm:px-4 text-small font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ' +
               (selected ? 'bg-surface text-fg shadow-panel' : 'text-muted hover:text-fg')
             }
           >
@@ -364,7 +364,7 @@ function FilterTabs({
     });
   }
   return (
-    <div className="-mx-5 overflow-x-auto px-5 pb-1 md:mx-0 md:px-0 [scrollbar-width:thin]">
+    <div className="relative max-w-full overflow-x-auto p-1 [scrollbar-width:thin]">
       <div
         role="tablist"
         aria-label="Filter by status"

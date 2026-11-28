@@ -318,9 +318,9 @@ function PayInvoiceInner() {
 
       <TechnicalDetails>
         <div className="flex flex-col gap-2">
-          <span className="flex justify-between gap-3"><span>Invoice address</span><span className="break-all font-mono text-fg">{invoicePda.toBase58()}</span></span>
-          <span className="flex justify-between gap-3"><span>Mint</span><span className="break-all font-mono text-fg">{invoice.mint.toBase58()}</span></span>
-          <span className="flex justify-between gap-3"><span>Pay link</span><span className="break-all font-mono text-fg">{payLink}</span></span>
+          <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><span>Invoice address</span><span className="break-all font-mono text-fg">{invoicePda.toBase58()}</span></span>
+          <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><span>Mint</span><span className="break-all font-mono text-fg">{invoice.mint.toBase58()}</span></span>
+          <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><span>Pay link</span><span className="break-all font-mono text-fg">{payLink}</span></span>
         </div>
       </TechnicalDetails>
     </Container>

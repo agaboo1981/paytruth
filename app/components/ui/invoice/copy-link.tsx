@@ -49,7 +49,7 @@ export function CopyLink({
   }
 
   return (
-    <span className={cn('inline-flex items-center gap-2', className)}>
+    <span className={cn('inline-flex max-w-full flex-wrap items-center gap-2', className)}>
       <Button variant="secondary" size="sm" onClick={copy}>
         {label}
       </Button>

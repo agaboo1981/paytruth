@@ -24,14 +24,14 @@ export const DialogContent = forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'dialog-content fixed left-1/2 top-1/2 z-50 w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-surface p-5 shadow-lift focus:outline-none',
+          'dialog-content fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-surface p-5 shadow-lift focus:outline-none',
           className,
         )}
         {...props}
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-sm border border-border text-muted transition-colors duration-fast hover:border-[var(--accent)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-sm border border-border text-muted transition-colors duration-fast hover:border-[var(--accent)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           aria-label="Close dialog"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -77,9 +77,9 @@ export const DialogDescription = forwardRef<
 type DialogSectionProps = HTMLAttributes<HTMLDivElement>;
 
 export function DialogHeader({ className, ...props }: DialogSectionProps) {
-  return <div className={cn('pr-10', className)} {...props} />;
+  return <div className={cn('pr-12', className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: DialogSectionProps) {
-  return <div className={cn('mt-5 flex flex-wrap justify-end gap-2', className)} {...props} />;
+  return <div className={cn('mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end', className)} {...props} />;
 }

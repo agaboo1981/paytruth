@@ -84,12 +84,12 @@ function Timeline({ invoice }: { invoice: import('@/components/ui/sdk/types').In
   return (
     <ol className="flex flex-col gap-3">
       {steps.map((step) => (
-        <li key={step.label} className="flex items-center gap-3">
+        <li key={step.label} className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:flex">
           <span
             className={
               step.done
-                ? 'grid h-6 w-6 place-items-center rounded-pill bg-[var(--success)] text-[var(--success-fg)]'
-                : 'grid h-6 w-6 place-items-center rounded-pill border border-border text-muted'
+                ? 'grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-[var(--success)] text-[var(--success-fg)]'
+                : 'grid h-6 w-6 shrink-0 place-items-center rounded-pill border border-border text-muted'
             }
             aria-hidden="true"
           >
@@ -100,7 +100,7 @@ function Timeline({ invoice }: { invoice: import('@/components/ui/sdk/types').In
             ) : null}
           </span>
           <span className="text-small font-semibold text-fg">{step.label}</span>
-          {step.at !== null ? <span className="text-small text-muted">{formatTimestamp(step.at)}</span> : null}
+          {step.at !== null ? <span className="col-start-2 text-small text-muted">{formatTimestamp(step.at)}</span> : null}
         </li>
       ))}
     </ol>
@@ -178,7 +178,7 @@ function MerchantInvoiceInner() {
       </section>
 
       {showStickyClaim ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 p-3 backdrop-blur md:hidden">
+        <div className="mobile-claim-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 p-3 backdrop-blur md:hidden">
           <a
             href="#actions"
             onClick={(event) => {
@@ -196,7 +196,7 @@ function MerchantInvoiceInner() {
 
       <section aria-labelledby="amounts-heading" className="flex flex-col gap-3">
         <h2 id="amounts-heading" className="font-display text-title font-bold text-fg">Amounts</h2>
-        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Amount due"><Money value={invoice.amountDue} /></Field>
           <Field label="Paid"><Money value={invoice.paidAmount} /></Field>
           <Field label="Extra paid"><Money value={derived.excess} /></Field>
@@ -369,10 +369,10 @@ function ActionPanel({
       <div className="md:col-span-2">
         <TechnicalDetails>
           <dl className="grid gap-2">
-            <div className="flex justify-between gap-3"><dt>Invoice address</dt><dd className="break-all font-mono text-fg">{invoicePda.toBase58()}</dd></div>
-            <div className="flex justify-between gap-3"><dt>Invoice number</dt><dd className="font-mono text-fg">{invoice.invoiceId.toString()}</dd></div>
-            <div className="flex justify-between gap-3"><dt>Status</dt><dd className="text-fg">{['Open', 'Paid', 'Expired', 'Closed'][invoice.status]}</dd></div>
-            <div className="flex justify-between gap-3"><dt>Closed</dt><dd className="text-fg">{closed ? 'Yes' : 'No'}</dd></div>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Invoice address</dt><dd className="break-all font-mono text-fg">{invoicePda.toBase58()}</dd></div>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Invoice number</dt><dd className="font-mono text-fg">{invoice.invoiceId.toString()}</dd></div>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Status</dt><dd className="text-fg">{['Open', 'Paid', 'Expired', 'Closed'][invoice.status]}</dd></div>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Closed</dt><dd className="text-fg">{closed ? 'Yes' : 'No'}</dd></div>
           </dl>
         </TechnicalDetails>
       </div>

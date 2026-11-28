@@ -79,7 +79,7 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
   let pathname = url.pathname;
 
-  if (pathname === '/paytruth') {
+  if (pathname === '/' || pathname === '/paytruth') {
     res.writeHead(308, { Location: `/paytruth/${url.search}` });
     res.end();
     return;
@@ -122,6 +122,6 @@ const server = createServer(async (req, res) => {
   res.end(body);
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Serving GitHub Pages staging root at http://127.0.0.1:${port}/paytruth/`);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Serving GitHub Pages staging root at http://0.0.0.0:${port}/paytruth/`);
 });
