@@ -141,3 +141,64 @@ export function groupInvoices(
   }
   return groups;
 }
+
+export type StatusFilter =
+  | 'all'
+  | 'needs-action'
+  | 'open'
+  | 'paid'
+  | 'claimed'
+  | 'overpaid'
+  | 'expired'
+  | 'closed';
+
+/**
+ * Status filter tabs, each defined only from on-chain Invoice fields. An invoice can match several.
+ *  all          every invoice
+ *  needs-action classifyInvoice(...).group === 'needs-action' (role-aware: merchant has to claim / refund / expire)
+ *  open         status == Open && now <  expires_at                 (payable)
+ *  paid         status == Paid && !claimed                         (money in escrow, not yet claimed)
+ *  claimed      claimed == true                                    (any status, incl. Closed tombstones)
+ *  overpaid     paid_amount > amount_due                           (refunded or not; refunded_excess > 0 means refunded)
+ *  expired      status == Expired || (status == Open && now >= expires_at)
+ *  closed       status == Closed
+ * There is no cancel instruction in the program, so there is no Cancelled state.
+ */
+export const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'needs-action', label: 'Needs action' },
+  { id: 'open', label: 'Open' },
+  { id: 'paid', label: 'Paid' },
+  { id: 'claimed', label: 'Claimed' },
+  { id: 'overpaid', label: 'Overpaid / Refunded' },
+  { id: 'expired', label: 'Expired' },
+  { id: 'closed', label: 'Closed' },
+];
+
+export function matchesFilter(invoice: Invoice, filter: StatusFilter, nowSec: bigint, role: InvoiceRole = 'merchant'): boolean {
+  const pastExpiry = nowSec >= invoice.expiresAt;
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'needs-action':
+      return classifyInvoice(invoice, nowSec, role).group === 'needs-action';
+    case 'open':
+      return invoice.status === InvoiceStatus.Open && !pastExpiry;
+    case 'paid':
+      return invoice.status === InvoiceStatus.Paid && !invoice.claimed;
+    case 'claimed':
+      return invoice.claimed;
+    case 'overpaid':
+      return invoice.paidAmount > invoice.amountDue;
+    case 'expired':
+      return invoice.status === InvoiceStatus.Expired || (invoice.status === InvoiceStatus.Open && pastExpiry);
+    case 'closed':
+      return invoice.status === InvoiceStatus.Closed;
+  }
+}
+
+export function filterCounts(rows: ListedInvoice[], nowSec: bigint, role: InvoiceRole = 'merchant'): Record<StatusFilter, number> {
+  const counts = Object.fromEntries(STATUS_FILTERS.map((f) => [f.id, 0])) as Record<StatusFilter, number>;
+  for (const { invoice } of rows) for (const f of STATUS_FILTERS) if (matchesFilter(invoice, f.id, nowSec, role)) counts[f.id] += 1;
+  return counts;
+}

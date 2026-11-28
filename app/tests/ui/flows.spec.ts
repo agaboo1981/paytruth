@@ -74,3 +74,30 @@ test('merchant page shows a sticky Claim payment bar on mobile', async ({ page }
   await expect(sticky).toBeVisible();
   await page.screenshot({ path: join(process.cwd(), '..', 'ui-screens', 'merchant-sticky-claim-390.png') });
 });
+
+test('status filter tabs show counts and filter rows', async ({ page }) => {
+  await page.goto(appPath('/invoices/'));
+  const tabs = page.getByRole('tablist', { name: 'Filter by status' });
+  await expect(tabs.getByRole('tab')).toHaveCount(8);
+  await tabs.getByRole('tab', { name: /^Closed/ }).click();
+  await expect(tabs.getByRole('tab', { name: /^Closed/ })).toHaveAttribute('aria-selected', 'true');
+  await tabs.getByRole('tab', { name: /^Closed/ }).press('ArrowLeft');
+  await expect(tabs.getByRole('tab', { name: /^Expired/ })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('inline history expands with demo-labelled entries in the demo build', async ({ page }) => {
+  await page.goto(appPath('/invoices/'));
+  const toggle = page.getByRole('button', { name: 'Show history' }).first();
+  await toggle.click();
+  await expect(page.getByRole('button', { name: 'Hide history' }).first()).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByText('Invoice created').first()).toBeVisible();
+  await expect(page.getByText('Demo', { exact: true }).first()).toBeVisible();
+});
+
+test('merchant and verify pages have a History section', async ({ page }) => {
+  await page.goto(appPath(`/verify?invoice=${fixtureSpecs.claimed.pda}`));
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(page.getByText('Merchant claimed the payment').first()).toBeVisible();
+  await page.goto(appPath(`/merchant?invoice=${fixtureSpecs.paid.pda}`));
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+});
