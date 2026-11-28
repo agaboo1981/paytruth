@@ -1,4 +1,5 @@
 import { appPath } from '../paths';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import { fixtureSpecs } from '../../components/ui/sdk/fixtures';
@@ -55,4 +56,21 @@ test.describe('flows', () => {
     await expect(alert).toBeVisible({ timeout: 15000 });
     await expect(alert).toContainText('You cancelled in your wallet');
   });
+});
+
+test('my invoices lists demo invoices with Needs action first and an inline Claim', async ({ page }) => {
+  await page.goto(appPath('/invoices/'));
+  const needs = page.getByRole('heading', { name: /Needs action/ });
+  await expect(needs).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Claim payment' }).first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Paid by me' }).click();
+  await expect(page.getByRole('tab', { name: 'Paid by me' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('merchant page shows a sticky Claim payment bar on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(appPath(`/merchant?invoice=${fixtureSpecs.paid.pda}`));
+  const sticky = page.locator('a[href="#actions"]');
+  await expect(sticky).toBeVisible();
+  await page.screenshot({ path: join(process.cwd(), '..', 'ui-screens', 'merchant-sticky-claim-390.png') });
 });

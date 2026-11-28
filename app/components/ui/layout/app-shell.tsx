@@ -7,6 +7,7 @@ import { WalletArea } from '../wallet/wallet-area';
 import { ThemeToggle } from './theme-toggle';
 
 const navItems = [
+  { href: '/invoices/', label: 'My invoices' },
   { href: '/merchant/new', label: 'Create invoice' },
   { href: '/verify', label: 'Verify' },
 ];

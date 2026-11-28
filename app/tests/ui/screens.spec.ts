@@ -29,6 +29,7 @@ const screens: { name: string; path: string }[] = [
   { name: 'verify-closed', path: appPath(`/verify?invoice=${fixtureSpecs.closed.pda}`) },
   { name: 'verify-invalid', path: appPath('/verify?invoice=not-a-valid-address') },
   { name: 'states', path: appPath('/states') },
+  { name: 'invoices-mock', path: appPath('/invoices/') },
 ];
 
 async function shoot(page: Page, name: string) {
