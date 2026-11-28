@@ -2,6 +2,18 @@
 
 Paytruth is a wallet-to-wallet USDC invoice escrow on Solana. The Anchor program is the source of truth: payments, claims, refunds, and expiry are enforced in an on-chain escrow, not by a backend. `pay_invoice` atomically transfers USDC from the payer to the escrow and sets status to Paid in the same instruction; `merchant_claim` is capped at `amount_due` and can run once. That closes the failure mode where a backend or merchant could self-declare an invoice paid without funds moving. The `/verify/?invoice=<invoicePda>` page reads the Invoice account and escrow token balance directly from RPC.
 
+**Live demo (devnet):** [agaboo1981.github.io/paytruth](https://agaboo1981.github.io/paytruth/), with [My invoices](https://agaboo1981.github.io/paytruth/invoices/) and the public [verify page](https://agaboo1981.github.io/paytruth/verify/). Use a Phantom wallet set to devnet with devnet SOL and [Circle devnet USDC](https://faucet.circle.com/).
+
+## Features
+
+- **Create and share an invoice.** A merchant creates an on-chain invoice (a PDA with its own USDC escrow) and shares a pay link.
+- **Pay into escrow.** The payer's USDC moves into the escrow and the invoice flips to Paid in the same instruction. Duplicate, late, or underpaid payments fail on-chain and leave no state behind.
+- **Claim.** The merchant can claim exactly `amount_due`, once.
+- **Overpayment refund.** Anyone can trigger `refund_overpayment`, but the excess always goes to the recorded payer's token account, never to the caller or the merchant.
+- **Expiry and close.** An unpaid invoice can be expired after its deadline and then closed.
+- **My invoices.** Connect a wallet to see every invoice it created or paid, with no saved addresses needed. Status tabs cover unclaimed, claimed, overpaid and refunded, expired and closed, and incomplete invoices, and each invoice has an on-chain history (its latest 25 transactions) with explorer links.
+- **Independent verification.** `/verify/?invoice=<pda>` reads the Invoice account and escrow balance straight from RPC, with no wallet.
+
 ## Official 7-step demo
 
 These are the steps in [`docs/TEST-PLAN.md` §E](docs/TEST-PLAN.md):
@@ -99,13 +111,14 @@ Note: [`docs/STATE-MACHINE.md`](docs/STATE-MACHINE.md) and the close section of 
 The final QA report for SHA `ce15926a4137b1b4672c1a91638a263f8d4c0145` (2026-11-27) is [`qa/final-qa-main.md`](qa/final-qa-main.md). Transaction signatures and devnet explorer links are there; they are not repeated here.
 
 - Official 7-step devnet demo: **7/7 PASS** (`DEMO_EXIT:0`), 14:41:15–14:42:20 WAT.
-- Playwright UI write-flow (local real-SDK app; no public URL): **3 passed / 0 failed**.
+- Playwright UI write-flow (local real-SDK app): **3 passed / 0 failed**.
 - LiteSVM `cargo test -p paytruth`: **60 passed / 0 failed**.
 - Adversarial TypeScript suite: **44 passing / 0 failing**, run against that SHA from a `qa/tests` overlay; those test files ship in `tests/adversarial/` on this branch.
+- My invoices and invoice history ([PR #9](https://github.com/agaboo1981/paytruth/pull/9)): vitest **122/122**, Playwright **52/52**, axe accessibility checks **0 violations**, plus a read-only devnet check. The incomplete-transaction state is covered by unit tests only.
 
 ## Hosting
 
-The app is a Next.js 14 static export (`output: 'export'`, `basePath: '/paytruth'`) so it can be hosted for free on GitHub Pages. Dynamic invoice addresses cannot be pre-rendered, so invoice screens use query parameters (`/pay/?invoice=<pda>`, `/merchant/?invoice=<pda>`, `/verify/?invoice=<pda>`) rather than `/[invoicePda]` path segments. The workflow at [`.github/workflows/pages.yml`](.github/workflows/pages.yml) builds `app/` and deploys `app/out` when `main` is pushed.
+The app is a Next.js 14 static export (`output: 'export'`, `basePath: '/paytruth'`) so it can be hosted for free on GitHub Pages. Dynamic invoice addresses cannot be pre-rendered, so invoice screens use query parameters (`/pay/?invoice=<pda>`, `/merchant/?invoice=<pda>`, `/verify/?invoice=<pda>`) rather than `/[invoicePda]` path segments. The live site is the built `app/out` folder, published on the `gh-pages` branch.
 
 Local preview after `cd app && npm run build`:
 
@@ -122,7 +135,7 @@ npm run serve:pages
 - Rent-dust nit: after close, the escrow ATA is closed, but a third party can later re-create that same ATA and send stray tokens. The merchant can recover them with `recover_unattributed`, but `close_invoice` on an already-`Closed` invoice returns `InvoiceNotTerminal`, so there is no instruction to close that later empty ATA and its rent remains as dust. Verified in [`a27_recover_after_close_from_recreated_escrow.rs`](programs/paytruth/tests/a27_recover_after_close_from_recreated_escrow.rs) and [`close_invoice.rs`](programs/paytruth/src/instructions/close_invoice.rs).
 - Upgrade authority remains with the gitignored devnet deployer key (`8w3kGAyCZy2uHVHbvtxQvTRzjVHQF8fPh1YshkE4H3xB`). It has not been transferred to a multisig, and the program is not marked final. Devnet only.
 - `initialize_config` is first-caller-wins: the first successful caller becomes `Config.authority` and fixes `usdc_mint` for v1 (no admin update). It should be run immediately after deploy and the Config account verified. On this devnet deploy that was done; see [`programs/DEPLOYMENTS.md`](programs/DEPLOYMENTS.md).
-- Devnet only. Not audited. The public demo is a free GitHub Pages static export at https://agaboo1981.github.io/paytruth/ (available after the Pages workflow on `main` succeeds).
+- Devnet only. Not audited. The public demo is a free GitHub Pages static export at https://agaboo1981.github.io/paytruth/.
 - Circle (or any USDC issuer) freeze authority could freeze an escrow ATA; that is outside the program's control.
 - Local program tests use a fresh 6-decimal classic SPL mint, never the Circle mint.
 
