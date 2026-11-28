@@ -143,18 +143,55 @@ function MerchantInvoiceInner() {
   const derived = derivedView(invoice, now, view.escrowBalance ?? 0n);
   const isMerchant = publicKey ? publicKey.equals(invoice.merchant) : false;
   const closedState = derived.kind === 'closed';
+  const showStickyClaim = isMerchant && derived.canClaim;
 
   return (
-    <Container className="flex flex-col gap-6">
+    <Container className={showStickyClaim ? 'flex flex-col gap-6 pb-28 md:pb-12' : 'flex flex-col gap-6'}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav aria-label="Breadcrumb" className="text-small text-muted">
-          <Link href="/" className="hover:text-accent">Home</Link> <span aria-hidden="true">/</span>{' '}
+          <Link href="/invoices/" className="hover:text-accent">My invoices</Link> <span aria-hidden="true">/</span>{' '}
           <span className="text-fg">Merchant view</span>
         </nav>
         <CopyLink path={invoicePath('merchant', invoicePda.toBase58())} label="Copy link" />
       </div>
 
       <StatusHero kind={derived.kind} headline={derived.headline} explanation={derived.explanation} />
+
+      <section id="actions" aria-labelledby="actions-heading" className="flex scroll-mt-24 flex-col gap-3">
+        <h2 id="actions-heading" className="font-display text-title font-bold text-fg">Actions</h2>
+        {!isMerchant ? (
+          <div role="note" className="rounded-md border border-[var(--warning)] bg-[var(--surface-2)] p-4 text-small text-warning">
+            Only the merchant wallet can claim. You&apos;re viewing this read-only.
+          </div>
+        ) : (
+          <ActionPanel
+            invoicePda={invoicePda}
+            invoice={invoice}
+            derived={derived}
+            finalized={view.finalized}
+            closed={closedState}
+            onRefresh={view.refresh}
+            onClosed={(signature) => setClosedLocally({ signature })}
+          />
+        )}
+      </section>
+
+      {showStickyClaim ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/95 p-3 backdrop-blur md:hidden">
+          <a
+            href="#actions"
+            onClick={(event) => {
+              event.preventDefault();
+              const target = document.getElementById('actions');
+              target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              target?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+            }}
+            className="flex min-h-12 w-full items-center justify-center rounded-sm border border-accent bg-accent px-5 text-body font-semibold text-accent-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          >
+            Claim payment
+          </a>
+        </div>
+      ) : null}
 
       <section aria-labelledby="amounts-heading" className="flex flex-col gap-3">
         <h2 id="amounts-heading" className="font-display text-title font-bold text-fg">Amounts</h2>
@@ -186,24 +223,6 @@ function MerchantInvoiceInner() {
         </section>
       </div>
 
-      <section aria-labelledby="actions-heading" className="flex flex-col gap-3">
-        <h2 id="actions-heading" className="font-display text-title font-bold text-fg">Actions</h2>
-        {!isMerchant ? (
-          <div role="note" className="rounded-md border border-[var(--warning)] bg-[var(--surface-2)] p-4 text-small text-warning">
-            Only the merchant wallet can claim. You&apos;re viewing this read-only.
-          </div>
-        ) : (
-          <ActionPanel
-            invoicePda={invoicePda}
-            invoice={invoice}
-            derived={derived}
-            finalized={view.finalized}
-            closed={closedState}
-            onRefresh={view.refresh}
-            onClosed={(signature) => setClosedLocally({ signature })}
-          />
-        )}
-      </section>
     </Container>
   );
 }

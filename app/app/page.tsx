@@ -4,13 +4,16 @@ import { invoicePath } from '@/lib/routes';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Container } from '@/components/ui/layout/container';
 import { isMock } from '@/components/ui/sdk/client';
 import { FIXTURE_LABELS, fixtureSpecs } from '@/components/ui/sdk/fixtures';
 import { parsePublicKey } from '@/components/ui/sdk/validate';
+import { useWalletKey } from '@/components/ui/sdk/use-wallet-key';
+
+const LANDED_KEY = 'paytruth:landed-invoices';
 
 const steps = [
   {
@@ -35,6 +38,20 @@ export default function LandingPage() {
   const router = useRouter();
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { connected } = useWalletKey();
+
+  // After a wallet connects on the home page, land on My invoices (once per tab session,
+  // so the home page stays reachable). Pay links never redirect.
+  useEffect(() => {
+    if (isMock || !connected) return;
+    try {
+      if (window.sessionStorage.getItem(LANDED_KEY)) return;
+      window.sessionStorage.setItem(LANDED_KEY, '1');
+    } catch {
+      // storage blocked: still redirect
+    }
+    router.replace('/invoices/');
+  }, [connected, router]);
 
   function verify(event: React.FormEvent) {
     event.preventDefault();

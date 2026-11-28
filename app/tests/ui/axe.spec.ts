@@ -10,6 +10,7 @@ import { fixtureSpecs } from '../../components/ui/sdk/fixtures';
 const routes: { name: string; path: string }[] = [
   { name: 'landing', path: appPath('/') },
   { name: 'merchant-new', path: appPath('/merchant/new') },
+  { name: 'invoices', path: appPath('/invoices/') },
   { name: 'pay-open', path: appPath(`/pay?invoice=${fixtureSpecs.open.pda}`) },
   { name: 'pay-overpaid', path: appPath(`/pay?invoice=${fixtureSpecs.overpaid.pda}`) },
   { name: 'pay-expired', path: appPath(`/pay?invoice=${fixtureSpecs.expired.pda}`) },
