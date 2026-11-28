@@ -24,7 +24,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     .join(' ');
 
   return (
-    <div className="flex w-full flex-col gap-1.5">
+    <div className="flex min-w-0 w-full flex-col gap-1.5">
       <label htmlFor={inputId} className="text-small font-semibold text-fg">
         {label}
       </label>
@@ -35,7 +35,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
         className={cn(
-          'min-h-11 w-full rounded-sm border bg-[var(--surface-2)] px-3 text-body text-fg placeholder:text-muted transition-[border-color,background-color] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-55',
+          'min-h-11 min-w-0 w-full rounded-sm border bg-[var(--surface-2)] px-3 text-body text-fg placeholder:text-muted transition-[border-color,background-color] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-55',
           error ? 'border-[var(--danger)]' : 'border-border hover:border-[var(--accent)]',
           className,
         )}

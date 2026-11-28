@@ -5,3 +5,90 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* Flex/grid children must be allowed to shrink around addresses and amounts. */
+  main :where(div, section, article, form, dl, dd, li) {
+    min-width: 0;
+  }
+
+  main {
+    overflow-wrap: anywhere;
+  }
+
+  :where(input, select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  :where(img, video, canvas) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  @media (max-width: 767px) {
+    /* Prevent iOS from zooming the viewport when an address field is focused. */
+    :where(input, select, textarea) {
+      font-size: 1rem !important;
+    }
+  }
+}
+
+/* Keep the page gutters clear of notches in portrait and landscape. */
+.page-container,
+.site-header > div,
+footer > div {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .page-container,
+  .site-header > div,
+  footer > div {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 768px) {
+  .page-container,
+  .site-header > div,
+  footer > div {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+}
+
+.site-header {
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-y: auto;
+}
+
+@media (min-width: 1280px) {
+  .site-header {
+    overflow: visible;
+  }
+}
+
+.technical-details :where(dd, .font-mono) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+footer {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-claim-bar {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+
+@media (max-width: 767px) {
+  body:has(.mobile-claim-bar) footer {
+    margin-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+}

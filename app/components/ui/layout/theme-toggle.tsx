@@ -45,7 +45,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme from ${theme === 'dark' ? 'Dark' : 'Light'} mode`}
       aria-pressed={theme === 'light'}
       className={cn(
-        'inline-flex min-h-10 items-center gap-2 rounded-sm border border-border bg-[var(--surface-2)] px-3 text-small font-semibold text-fg transition-colors duration-fast hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
+        'inline-flex min-h-11 min-w-11 justify-center items-center gap-2 rounded-sm border border-border bg-[var(--surface-2)] px-3 text-small font-semibold text-fg transition-colors duration-fast hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
         className,
       )}
     >
@@ -67,7 +67,7 @@ export function ThemeToggle({ className }: { className?: string }) {
           />
         )}
       </svg>
-      <span className="hidden sm:inline">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+      <span className="hidden md:inline">{theme === 'dark' ? 'Dark' : 'Light'}</span>
     </button>
   );
 }

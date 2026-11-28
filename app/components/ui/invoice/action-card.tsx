@@ -44,6 +44,7 @@ export function ActionCard({
       </div>
       <div>
         <Button
+          className="w-full sm:w-auto"
           variant={action.variant ?? 'secondary'}
           onClick={tx.run}
           loading={tx.isInFlight}

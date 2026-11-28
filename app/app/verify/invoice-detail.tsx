@@ -205,8 +205,8 @@ export function InvoiceDetail() {
             : 'This page reads the invoice account and escrow balance straight from the Solana devnet program. There is no server to tell us "paid" — the program is the only source of truth.'}
         </p>
         <dl className="grid gap-2 text-small">
-          <div className="flex justify-between gap-3"><dt className="text-muted">Read at</dt><dd className="font-semibold text-fg">{finalized ? 'finalized' : 'confirmed'}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">{isMock ? 'Read from the demo simulator at' : 'Read directly from Solana devnet at'}</dt><dd className="text-right font-semibold text-fg">{readAt}</dd></div>
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt className="text-muted">Read at</dt><dd className="font-semibold text-fg">{finalized ? 'finalized' : 'confirmed'}</dd></div>
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt className="text-muted">{isMock ? 'Read from the demo simulator at' : 'Read directly from Solana devnet at'}</dt><dd className="sm:text-right font-semibold text-fg">{readAt}</dd></div>
         </dl>
       </section>
 
@@ -219,9 +219,9 @@ export function InvoiceDetail() {
 
       <TechnicalDetails>
         <dl className="grid gap-2">
-          <div className="flex justify-between gap-3"><dt>Invoice address</dt><dd className="break-all font-mono text-fg">{invoicePda.toBase58()}</dd></div>
-          <div className="flex justify-between gap-3"><dt>Mint</dt><dd className="break-all font-mono text-fg">{invoice.mint.toBase58()}</dd></div>
-          <div className="flex justify-between gap-3"><dt>Invoice number</dt><dd className="font-mono text-fg">{invoice.invoiceId.toString()}</dd></div>
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Invoice address</dt><dd className="break-all font-mono text-fg">{invoicePda.toBase58()}</dd></div>
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Mint</dt><dd className="break-all font-mono text-fg">{invoice.mint.toBase58()}</dd></div>
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3"><dt>Invoice number</dt><dd className="font-mono text-fg">{invoice.invoiceId.toString()}</dd></div>
         </dl>
       </TechnicalDetails>
     </Container>

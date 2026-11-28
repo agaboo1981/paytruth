@@ -52,7 +52,7 @@ export function Address({ address, chars = 4, className }: AddressProps) {
 
   return (
     <span
-      className={cn('inline-flex min-w-0 items-center gap-2', className)}
+      className={cn('inline-flex min-w-0 max-w-full flex-wrap items-center gap-2', className)}
       aria-label={`Solana address ${address}`}
       title={address}
     >
@@ -61,7 +61,7 @@ export function Address({ address, chars = 4, className }: AddressProps) {
         type="button"
         onClick={copyAddress}
         aria-label={`Copy address ${address}`}
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-xs border border-border text-muted transition-colors duration-fast hover:border-[var(--accent)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+        className="grid h-11 w-11 sm:h-9 sm:w-9 shrink-0 place-items-center rounded-xs border border-border text-muted transition-colors duration-fast hover:border-[var(--accent)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
       >
         <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
           <rect x="5" y="5" width="8" height="8" rx="1" fill="none" stroke="currentColor" />
