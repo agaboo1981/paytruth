@@ -76,16 +76,24 @@ if (!Number.isFinite(port) || port <= 0) {
 }
 
 const server = createServer(async (req, res) => {
-  const url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
-  let pathname = url.pathname;
+  let url;
+  let target;
+  try {
+    url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
+    target = safeJoin(stageRoot, url.pathname);
+  } catch {
+    // Invalid URLs and malformed percent-encoding are client errors.
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('Bad request');
+    return;
+  }
 
-  if (pathname === '/' || pathname === '/paytruth') {
+  if (url.pathname === '/' || url.pathname === '/paytruth') {
     res.writeHead(308, { Location: `/paytruth/${url.search}` });
     res.end();
     return;
   }
 
-  const target = safeJoin(stageRoot, pathname);
   if (!target) {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('Bad request');
